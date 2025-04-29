@@ -10,3 +10,5 @@ Clean-Temp
 Optimize-Startup
 
 Write-Host "`n[SysBot] Otimização concluída com sucesso!" -ForegroundColor Green
+
+Generate-SystemReport
