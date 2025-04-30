@@ -1,103 +1,97 @@
 <#
 .SYNOPSIS
-    Módulo de utilitários avançados para o SysBot
+    🔧 Módulo de Utilitários Avançados para o SysBot v3.1
 .DESCRIPTION
-    Contém funções para diagnóstico e manutenção do sistema
+    Contém funções extras para diagnóstico e manutenção do sistema Windows
 #>
 
-# Função para verificar uso de memória
-function Get-MemoryUsage {
+# Função para verificar uso de memória RAM
+function Verificar-MemoriaDetalhada {
+    Write-Host "`n[🧠] Verificando uso detalhado da memória RAM..." -ForegroundColor Magenta
     try {
-        $os = Get-CimInstance Win32_OperatingSystem
-        $total = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
-        $free = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
-        $used = $total - $free
-        $percentUsed = [math]::Round(($used / $total) * 100, 2)
+        $dados = Get-CimInstance Win32_OperatingSystem
+        $total = [math]::Round($dados.TotalVisibleMemorySize / 1MB, 2)
+        $livre = [math]::Round($dados.FreePhysicalMemory / 1MB, 2)
+        $uso = $total - $livre
+        $percentual = [math]::Round(($uso / $total) * 100, 2)
 
-        return [PSCustomObject]@{
-            Total        = $total
-            Used         = $used
-            Free         = $free
-            PercentUsed  = $percentUsed
-        }
+        Write-Host " Total: $total GB | Em Uso: $uso GB ($percentual`%) | Livre: $livre GB" -ForegroundColor White
     } catch {
-        Write-Error "Erro ao verificar memória: $_"
-        return $null
+        Write-Host " Erro ao verificar memória: $_" -ForegroundColor Red
     }
 }
 
-# Função para verificar portas abertas
-function Get-OpenPorts {
+# Função para listar as portas abertas
+function Verificar-PortasAbertas {
     param (
-        [int]$TopCount = 10
+        [int]$Quantidade = 10
     )
-
+    Write-Host "`n[🌐] Verificando portas abertas..." -ForegroundColor Magenta
     try {
-        $connections = @()
+        $conexoes = @()
         $netstat = netstat -ano | Select-String "ESTABLISHED"
 
-        foreach ($line in $netstat) {
-            $parts = $line -replace '\s+', ' ' -split ' '
-            if ($parts.Length -ge 5) {
-                $proc = Get-Process -Id $parts[4] -ErrorAction SilentlyContinue
-                $connections += [PSCustomObject]@{
-                    Protocol      = $parts[0]
-                    LocalAddress  = $parts[1]
-                    ForeignAddress= $parts[2]
-                    State         = $parts[3]
-                    PID           = $parts[4]
-                    ProcessName   = if ($proc) { $proc.Name } else { "Desconhecido" }
+        foreach ($linha in $netstat) {
+            $partes = $linha -replace '\s+', ' ' -split ' '
+            if ($partes.Length -ge 5) {
+                $proc = Get-Process -Id $partes[4] -ErrorAction SilentlyContinue
+                $conexoes += [PSCustomObject]@{
+                    Protocolo      = $partes[0]
+                    EndLocal       = $partes[1]
+                    EndRemoto      = $partes[2]
+                    Estado         = $partes[3]
+                    PID            = $partes[4]
+                    Processo       = if ($proc) { $proc.Name } else { "Desconhecido" }
                 }
             }
         }
 
-        $grouped = $connections | Group-Object -Property ForeignAddress |
-                Sort-Object -Property Count -Descending |
-                Select-Object -First $TopCount -Property Count, Name,
-                @{Name="Process"; Expression={($_.Group[0].ProcessName)}}
+        $agrupado = $conexoes | Group-Object -Property EndRemoto |
+            Sort-Object -Property Count -Descending |
+            Select-Object -First $Quantidade -Property Count, Name,
+            @{Name="Processo"; Expression={($_.Group[0].Processo)}}
 
-        return $grouped
+        $agrupado | Format-Table -AutoSize
     } catch {
-        Write-Error "Erro ao verificar portas abertas: $_"
-        return $null
+        Write-Host " Erro ao verificar portas: $_" -ForegroundColor Red
     }
 }
 
-# Função para verificar erros do sistema
-function Get-SystemErrors {
+# Função para buscar erros recentes no sistema
+function Verificar-ErrosSistema {
     param (
-        [int]$HoursBack = 24
+        [int]$Horas = 24
     )
-
+    Write-Host "`n[🚨] Verificando erros do sistema nas últimas $Horas horas..." -ForegroundColor Magenta
     try {
-        $startTime = (Get-Date).AddHours(-$HoursBack)
-        $events = Get-WinEvent -FilterHashtable @{
+        $inicio = (Get-Date).AddHours(-$Horas)
+        $eventos = Get-WinEvent -FilterHashtable @{
             LogName   = @('System', 'Application')
-            Level     = @(1, 2)  # Error and Critical
-            StartTime = $startTime
-        } -MaxEvents 100 | Where-Object { $_.TimeCreated -ge $startTime }
+            Level     = @(1, 2)  # Error e Critical
+            StartTime = $inicio
+        } -MaxEvents 100 | Where-Object { $_.TimeCreated -ge $inicio }
 
-        if ($events) {
-            $errorSummary = $events | Group-Object -Property Id, ProviderName |
-                    Sort-Object -Property Count -Descending |
-                    Select-Object Count,
-                    @{Name="ID"; Expression={($_.Name -split ',')[0]}},
-                    @{Name="Source"; Expression={($_.Name -split ',')[1]}},
-                    @{Name="Message"; Expression={($_.Group[0].Message -split "`n")[0]}}
+        if ($eventos) {
+            $resumo = $eventos | Group-Object -Property Id, ProviderName |
+                Sort-Object -Property Count -Descending |
+                Select-Object Count,
+                @{Name="ID"; Expression={($_.Name -split ',')[0]}},
+                @{Name="Fonte"; Expression={($_.Name -split ',')[1]}},
+                @{Name="Mensagem"; Expression={($_.Group[0].Message -split "`n")[0]}}
 
-            return $errorSummary
+            $resumo | Format-Table -AutoSize
+        } else {
+            Write-Host " Nenhum erro crítico encontrado nas últimas $Horas horas." -ForegroundColor Green
         }
-
-        return @()
     } catch {
-        Write-Error "Erro ao verificar eventos do sistema: $_"
-        return $null
+        Write-Host " Erro ao buscar eventos do sistema: $_" -ForegroundColor Red
     }
 }
 
-# Função para verificar serviços críticos
-function Test-CriticalServices {
-    $criticalServices = @(
+# Função para checar serviços críticos
+function Verificar-ServicosCriticos {
+    Write-Host "`n[🔒] Verificando serviços críticos do sistema..." -ForegroundColor Magenta
+    $servicosCriticos = @(
         "wuauserv",      # Windows Update
         "WinDefend",     # Windows Defender
         "wscsvc",        # Security Center
@@ -107,35 +101,25 @@ function Test-CriticalServices {
         "MpsSvc"         # Windows Firewall
     )
 
-    $results = @()
-
-    foreach ($service in $criticalServices) {
+    foreach ($servico in $servicosCriticos) {
         try {
-            $svc = Get-Service -Name $service -ErrorAction SilentlyContinue
+            $svc = Get-Service -Name $servico -ErrorAction SilentlyContinue
 
             if ($svc) {
-                $startMode = (Get-CimInstance -ClassName Win32_Service -Filter "Name='$service'" -ErrorAction SilentlyContinue).StartMode
-                $results += [PSCustomObject]@{
-                    Name      = $svc.DisplayName
-                    Status    = $svc.Status
-                    StartType = $startMode
-                    IsOK      = ($svc.Status -eq "Running")
-                }
+                $cim = Get-CimInstance -ClassName Win32_Service -Filter "Name='$servico'" -ErrorAction SilentlyContinue
+                $modo = if ($cim) { $cim.StartMode } else { "Desconhecido" }
+                $statusOK = ($svc.Status -eq "Running")
+
+                $cor = if ($statusOK) { "Green" } else { "Red" }
+                Write-Host " $($svc.DisplayName): $($svc.Status) (Início: $modo)" -ForegroundColor $cor
             } else {
-                $results += [PSCustomObject]@{
-                    Name      = $service
-                    Status    = "Não encontrado"
-                    StartType = "N/A"
-                    IsOK      = $false
-                }
+                Write-Host " $servico: Não encontrado!" -ForegroundColor Red
             }
         } catch {
-            Write-Error "Erro ao verificar serviço $service : $_"
+            Write-Host " Erro ao verificar serviço $servico: $_" -ForegroundColor Red
         }
     }
-
-    return $results
 }
 
 # Exportar funções
-Export-ModuleMember -Function Get-MemoryUsage, Get-OpenPorts, Get-SystemErrors, Test-CriticalServices
+Export-ModuleMember -Function Verificar-MemoriaDetalhada, Verificar-PortasAbertas, Verificar-ErrosSistema, Verificar-ServicosCriticos

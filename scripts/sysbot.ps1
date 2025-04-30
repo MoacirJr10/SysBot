@@ -28,7 +28,7 @@ function Verificar-MemoriaRAM {
 
 function Verificar-Atualizacoes {
     Write-Host "`n[🔄] Verificando atualizações do Windows..." -ForegroundColor Magenta
-    Uso do PSWindowsUpdate módulo, se disponível:
+    # Uso do PSWindowsUpdate módulo, se disponível
     if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
         Import-Module PSWindowsUpdate
         Get-WindowsUpdate -AcceptAll -Install -AutoReboot
@@ -91,7 +91,7 @@ function Criar-Relatorio {
 
     "`n[DISCOS]" | Out-File $relatorio -Append
     Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' } | ForEach-Object {
-        " Unidade $($_.DriveLetter): $($_.FileSystemLabel) - Espaço livre: $($_.SizeRemaining / 1GB -as [int]) GB" | Out-File $relatorio -Append
+        " Unidade $($_.DriveLetter): $($_.FileSystemLabel) - Espaço livre: $([math]::Round($_.SizeRemaining / 1GB, 2)) GB" | Out-File $relatorio -Append
     }
 
     Write-Host "`n📄 Relatório gerado em: $relatorio" -ForegroundColor Green

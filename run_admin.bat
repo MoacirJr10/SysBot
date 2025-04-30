@@ -1,5 +1,5 @@
 @echo off
-:: SysBot Launcher v3.0 - Manutenção Avançada do Sistema
+:: SysBot Launcher v3.1 - Manutenção Avançada do Sistema
 title SysBot - Ferramentas de Sistema Avançadas
 color 0A
 setlocal enabledelayedexpansion
@@ -15,11 +15,8 @@ if %errorlevel% neq 0 (
 :: Configurar caminhos
 set "ROOT_DIR=%~dp0"
 set "LOG_DIR=%ROOT_DIR%logs"
-set "DATA_HORA=%date%_%time%"
-set "DATA_HORA=%DATA_HORA::=-%"
-set "DATA_HORA=%DATA_HORA:/=-%"
+set "DATA_HORA=%date:~6,4%-%date:~3,2%-%date:~0,2%_%time:~0,2%-%time:~3,2%-%time:~6,2%"
 set "DATA_HORA=%DATA_HORA: =0%"
-set "DATA_HORA=%DATA_HORA:.=-%"
 
 :: Criar diretório de logs se não existir
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
@@ -62,9 +59,9 @@ set /p opcao_atualizacao=Selecione uma opcao:
 
 if "%opcao_atualizacao%"=="1" (
     echo.
-    echo [VERIFICANDO ATUALIZAÇÕES DO WINDOWS...]
+    echo [VERIFICANDO ATUALIZACOES DO WINDOWS...]
     echo Registrando em %LOG_DIR%\atualizacoes_%DATA_HORA%.log
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Transcript -Path '%LOG_DIR%\atualizacoes_%DATA_HORA%.log'; $session = New-Object -ComObject Microsoft.Update.Session; $searcher = $session.CreateUpdateSearcher(); Write-Host 'Buscando atualizações...'; $result = $searcher.Search('IsInstalled=0'); if ($result.Updates.Count -gt 0) { Write-Host 'Encontradas atualizações'; $updates = New-Object -ComObject Microsoft.Update.UpdateColl; $result.Updates | ForEach-Object { $updates.Add($_) | Out-Null }; $installer = $session.CreateUpdateInstaller(); $installer.Updates = $updates; $installer.Install() } else { Write-Host 'Nenhuma atualização disponível.' }; Stop-Transcript"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Transcript -Path '%LOG_DIR%\atualizacoes_%DATA_HORA%.log'; UsoClient StartInteractiveScan; Stop-Transcript"
     type "%LOG_DIR%\atualizacoes_%DATA_HORA%.log"
     pause
 )
@@ -111,7 +108,7 @@ echo.
 set /p opcao_hardware=Selecione uma opcao:
 
 if "%opcao_hardware%"=="1" (
-    systeminfo | findstr /B /C:"Nome do SO" /C:"Versão do SO" /C:"Fabricante" /C:"Modelo" /C:"Tipo do Sistema" /C:"Versão do BIOS" /C:"Diretório do Windows" /C:"Localidade"
+    systeminfo | findstr /B /C:"Nome do SO" /C:"Versao do SO" /C:"Fabricante" /C:"Modelo" /C:"Tipo do sistema" /C:"Versao do BIOS" /C:"Diretorio do Windows" /C:"Localidade"
     pause
 )
 if "%opcao_hardware%"=="2" (
@@ -123,8 +120,13 @@ if "%opcao_hardware%"=="3" (
     pause
 )
 if "%opcao_hardware%"=="4" (
-    wmic memorychip get capacity,partnumber,speed,devicelocator,manufacturer /format:list
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$os = Get-WmiObject Win32_OperatingSystem; $total = [math]::Round($os.TotalVisibleMemorySize/1MB,2); $free = [math]::Round($os.FreePhysicalMemory/1MB,2); $used = $total - $free; Write-Host \"Total: $total GB | Usado: $used GB | Livre: $free GB\""
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$mem = Get-CimInstance Win32_PhysicalMemory; $os = Get-CimInstance Win32_OperatingSystem; ^
+    $total = [math]::Round($os.TotalVisibleMemorySize/1MB,2); $free = [math]::Round($os.FreePhysicalMemory/1MB,2); ^
+    $used = $total - $free; ^
+    Write-Host 'Detalhes dos Módulos de Memória:'; ^
+    $mem | Select-Object Manufacturer, PartNumber, Speed, Capacity | Format-Table -AutoSize; ^
+    Write-Host ''; Write-Host 'Resumo: Total: ' $total 'GB | Usado: ' $used 'GB | Livre: ' $free 'GB'"
     pause
 )
 if "%opcao_hardware%"=="5" (
@@ -132,16 +134,16 @@ if "%opcao_hardware%"=="5" (
     pause
 )
 if "%opcao_hardware%"=="6" (
-    echo Gerando relatório em %LOG_DIR%\hardware_%DATA_HORA%.log
+    echo Gerando relatorio em %LOG_DIR%\hardware_%DATA_HORA%.log
     (
-        echo === INFORMAÇÕES DO SISTEMA ===
+        echo === INFORMACOES DO SISTEMA ===
         systeminfo
         echo.
         echo === CPU ===
         wmic cpu get /format:list
         echo.
-        echo === MEMÓRIA ===
-        wmic memorychip get /format:list
+        echo === MEMORIA ===
+        powershell -Command "Get-CimInstance Win32_PhysicalMemory | Format-List"
         echo.
         echo === GPU ===
         powershell -Command "Get-WmiObject Win32_VideoController | Format-List"
@@ -158,7 +160,7 @@ goto menu_principal
 :ferramentas_rede
 cls
 echo.
-echo ===== DIAGNÓSTICO DE REDE =====
+echo ===== DIAGNOSTICO DE REDE =====
 echo.
 echo 1. Testar Conexao com a Internet
 echo 2. Mostrar Conexoes Ativas
@@ -184,7 +186,7 @@ if "%opcao_rede%"=="3" (
 )
 if "%opcao_rede%"=="4" (
     echo [TESTANDO VELOCIDADE DA INTERNET...]
-    powershell -Command "irm https://install.speedtest.net/app/cli/install.ps1 | iex; speedtest"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "if (-not (Get-Command speedtest -ErrorAction SilentlyContinue)) { winget install --id=Ookla.Speedtest -e --accept-source-agreements --accept-package-agreements }; speedtest"
     pause
 )
 if "%opcao_rede%"=="5" (
@@ -208,7 +210,7 @@ echo.
 set /p opcao_limpeza=Selecione uma opcao:
 
 if "%opcao_limpeza%"=="1" (
-    powershell -Command "$temp = @($env:TEMP, \"$env:SystemRoot\Temp\", \"$env:LOCALAPPDATA\Temp\"); $temp | ForEach-Object { Get-ChildItem $_ -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }; Write-Host 'Arquivos temporários removidos.'"
+    powershell -Command "$temp = @($env:TEMP, \"$env:SystemRoot\Temp\", \"$env:LOCALAPPDATA\Temp\"); $temp | ForEach-Object { Get-ChildItem $_ -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }; Write-Host 'Arquivos temporarios removidos.'"
     pause
 )
 if "%opcao_limpeza%"=="2" (
@@ -220,7 +222,7 @@ if "%opcao_limpeza%"=="2" (
 )
 if "%opcao_limpeza%"=="3" (
     vssadmin delete shadows /all /quiet
-    echo Pontos de restauração removidos.
+    echo Pontos de restauracao removidos.
     pause
 )
 if "%opcao_limpeza%"=="4" (
