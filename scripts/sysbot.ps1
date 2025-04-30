@@ -1,198 +1,471 @@
-@echo off
-:: SysBot Advanced v3.0 - Manutenção Completa do Sistema
-title SysBot - Manutenção Avançada
-color 0A
-setlocal enabledelayedexpansion
+<#
+.SYNOPSIS
+    Script principal do SysBot - Versão 3.1
+.DESCRIPTION
+    Realiza operações de manutenção do sistema com funções corrigidas e otimizadas
+#>
 
-:: Configurações iniciais
-set "ROOT_DIR=%~dp0"
-set "LOG_DIR=%ROOT_DIR%logs"
-set "PS_SCRIPT=%ROOT_DIR%sysbot_main.ps1"
+# Configuração inicial
+$ErrorActionPreference = "Stop"
+$ScriptRoot = $PSScriptRoot
+$RootDir = Split-Path -Parent $ScriptRoot
+$LogDir = Join-Path -Path $RootDir -ChildPath "logs"
 
-:: Verificar requisitos
-where powershell >nul 2>&1
-if %errorlevel% neq 0 (
-echo [ERRO] PowerShell nâo estâ instalado ou nâo estâ no PATH
-pause
-exit /b 1
-)
+# Função para registrar logs
+function Write-Log {
+    param (
+        [string]$Message,
+        [string]$Level = "INFO"
+    )
 
-if not exist "%PS_SCRIPT%" (
-echo [ERRO] Arquivo principal sysbot_main.ps1 nâo encontrado
-pause
-exit /b 1
-)
+    if (-not (Test-Path -Path $LogDir)) {
+        New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+    }
 
-:main_menu
-cls
-echo.
-echo ===============================================
-echo        SYSBOT - MANUTENeÇeO AVANeADA
-echo ===============================================
-echo.
-echo 1. Atualizaçao do Sistema
-echo 2. Limpeza de Arquivos Temporários
-echo 3. Otimizaçao de Inicializaçao
-echo 4. Relatório Completo do Sistema
-echo 5. Executar Todas as Tarefas
-echo 6. Sair
-echo.
-set /p choice=Selecione uma opçao:
+    $logFile = Join-Path -Path $LogDir -ChildPath "sysbot_$(Get-Date -Format 'yyyy-MM-dd').log"
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$Level] $Message"
 
-if "%choice%"=="1" goto update_system
-if "%choice%"=="2" goto clean_temp
-if "%choice%"=="3" goto optimize_startup
-if "%choice%"=="4" goto system_report
-if "%choice%"=="5" goto full_maintenance
-if "%choice%"=="6" exit /b
-goto main_menu
+    $logEntry | Out-File -FilePath $logFile -Append
 
-:update_system
-cls
-echo.
-echo [ATUALIZAeÇeO DO SISTEMA]
-echo.
-echo 1. Verificar e instalar atualizaçães do Windows
-echo 2. Atualizar apenas definiçães do Windows Defender
-echo 3. Voltar ao menu principal
-echo.
-set /p update_choice=Selecione:
+    switch ($Level) {
+        "INFO"    { Write-Host $logEntry -ForegroundColor Cyan }
+        "WARNING" { Write-Host $logEntry -ForegroundColor Yellow }
+        "ERROR"   { Write-Host $logEntry -ForegroundColor Red }
+        default   { Write-Host $logEntry }
+    }
+}
 
-if "%update_choice%"=="1" (
-echo.
-echo [VERIFICANDO ATUALIZAeEES DO WINDOWS...]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; $result = Update-System; if ($result) { Write-Host 'Atualizaçao concluída com sucesso' -ForegroundColor Green } else { Write-Host 'Falha na atualizaçao' -ForegroundColor Red } }"
-pause
-)
-if "%update_choice%"=="2" (
-echo.
-echo [ATUALIZANDO DEFINIeEES DO DEFENDER...]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; if (Get-Command Update-MpSignature -ErrorAction SilentlyContinue) { Update-MpSignature; Write-Host 'Definiçães atualizadas' -ForegroundColor Green } else { Write-Host 'Windows Defender nâo disponível' -ForegroundColor Yellow } }"
-pause
-)
-goto main_menu
+# Verificação de admin
+function Test-IsAdmin {
+    try {
+        $currentUser = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+        return $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    } catch {
+        Write-Log "Erro ao verificar privilégios: $_" -Level "ERROR"
+        return $false
+    }
+}
 
-:clean_temp
-cls
-echo.
-echo [LIMPEZA DE ARQUIVOS TEMPeeRIOS]
-echo.
-echo 1. Limpar arquivos temporários padrão
-echo 2. Limpar com opçães avançadas
-echo 3. Voltar ao menu principal
-echo.
-set /p clean_choice=Selecione:
+# Função para verificar memória RAM (corrigida)
+function Get-MemoryUsage {
+    try {
+        $os = Get-WmiObject Win32_OperatingSystem -ErrorAction Stop
+        $total = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
+        $free = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
+        $used = $total - $free
+        $percentUsed = [math]::Round(($used / $total) * 100, 2)
 
-if "%clean_choice%"=="1" (
-echo.
-echo [LIMPEZA PADReO EM ANDAMENTO...]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; $result = Clean-TempFiles; if ($result) { Write-Host ('Limpeza concluída: '+$result.FilesRemoved+' arquivos removidos ('+$result.MBRemoved+' MB)') -ForegroundColor Green } else { Write-Host 'Falha na limpeza' -ForegroundColor Red } }"
-pause
-)
-if "%clean_choice%"=="2" (
-echo.
-echo [LIMPEZA AVANeADA]
-echo 1. Limpar cache do Windows Update
-echo 2. Limpar arquivos de prefetch
-echo 3. Limpar todos os arquivos temporários
-echo 4. Voltar
-echo.
-set /p adv_clean_choice=Selecione:
+        return @{
+            Total = $total
+            Used = $used
+            Free = $free
+            PercentUsed = $percentUsed
+        }
+    } catch {
+        Write-Log "Erro ao verificar memória RAM: $_" -Level "ERROR"
+        return $null
+    }
+}
 
-if "%adv_clean_choice%"=="1" (
-echo.
-echo [LIMPANDO CACHE DO WINDOWS UPDATE...]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; Remove-Item -Path '$env:SystemRoot\SoftwareDistribution\Download\*' -Recurse -Force -ErrorAction SilentlyContinue; Write-Host 'Cache do Windows Update limpo' -ForegroundColor Green }"
-pause
-)
-if "%adv_clean_choice%"=="2" (
-echo.
-echo [LIMPANDO ARQUIVOS DE PREFETCH...]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; Remove-Item -Path '$env:SystemRoot\Prefetch\*' -Recurse -Force -ErrorAction SilentlyContinue; Write-Host 'Arquivos de prefetch limpos' -ForegroundColor Green }"
-pause
-)
-if "%adv_clean_choice%"=="3" (
-echo.
-echo [LIMPANDO TODOS OS ARQUIVOS TEMPeeRIOS...]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; Get-ChildItem -Path $env:SystemRoot\Temp, $env:TEMP -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; Write-Host 'Todos os arquivos temporários limpos' -ForegroundColor Green }"
-pause
-)
-goto clean_temp
-)
-goto main_menu
+# Função para atualizar o sistema (corrigida)
+function Update-System {
+    try {
+        Write-Log "Iniciando verificação de atualizações..." -Level "INFO"
 
-:optimize_startup
-cls
-echo.
-echo [OTIMIZAeÇeO DE INICIALIZAeÇeO]
-echo.
-echo 1. Listar itens de inicializaçao
-echo 2. Desativar itens de inicializaçao
-echo 3. Otimizar unidades de disco
-echo 4. Voltar ao menu principal
-echo.
-set /p optimize_choice=Selecione:
+        # Para Windows 10/11
+        if (Get-Command Get-WindowsUpdate -ErrorAction SilentlyContinue) {
+            $updates = Get-WindowsUpdate -AcceptAll -AutoReboot:$false -ErrorAction Stop
+            if ($updates) {
+                $installResult = Install-WindowsUpdate -AcceptAll -AutoReboot:$false -ErrorAction Stop
+                Write-Log "Atualizações instaladas: $($installResult.Count)" -Level "INFO"
+                return $true
+            } else {
+                Write-Log "Nenhuma atualização disponível" -Level "INFO"
+                return $true
+            }
+        }
+        # Para versões mais antigas
+        else {
+            $session = New-Object -ComObject Microsoft.Update.Session -ErrorAction Stop
+            $searcher = $session.CreateUpdateSearcher()
+            $result = $searcher.Search("IsInstalled=0")
 
-if "%optimize_choice%"=="1" (
-echo.
-echo [ITENS DE INICIALIZAeÇeO]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; $items = Optimize-SystemStartup; if ($items.StartupItems.Count -gt 0) { Write-Host 'Itens encontrados:'; $items.StartupItems | Format-Table -AutoSize } else { Write-Host 'Nenhum item de inicializaçao encontrado' -ForegroundColor Yellow } }"
-pause
-)
-if "%optimize_choice%"=="2" (
-echo.
-echo [DESATIVAR ITENS DE INICIALIZAeÇeO]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; $startupPath = [Environment]::GetFolderPath('Startup'); $items = Get-ChildItem -Path $startupPath, 'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup' -ErrorAction SilentlyContinue; if ($items) { $items | Format-Table Name, FullName -AutoSize; Write-Host '`nPara desativar, remova os atalhos das pastas acima.' -ForegroundColor Yellow } else { Write-Host 'Nenhum item de inicializaçao encontrado' -ForegroundColor Yellow } }"
-pause
-)
-if "%optimize_choice%"=="3" (
-echo.
-echo [OTIMIZANDO UNIDADES DE DISCO...]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; $result = Optimize-SystemStartup; if ($result.OptimizedVolumes.Count -gt 0) { Write-Host ('Unidades otimizadas: '+($result.OptimizedVolumes -join ', ')) -ForegroundColor Green } else { Write-Host 'Nenhuma unidade otimizada' -ForegroundColor Yellow } }"
-pause
-)
-goto main_menu
+            if ($result.Updates.Count -gt 0) {
+                Write-Log "Encontradas $($result.Updates.Count) atualizações" -Level "INFO"
+                $updatesToInstall = New-Object -ComObject Microsoft.Update.UpdateColl
+                $result.Updates | ForEach-Object { $updatesToInstall.Add($_) | Out-Null }
 
-:system_report
-cls
-echo.
-echo [RELATeeRIO DO SISTEMA]
-echo.
-echo 1. Relatório resumido
-echo 2. Relatório completo
-echo 3. Salvar relatório em arquivo
-echo 4. Voltar ao menu principal
-echo.
-set /p report_choice=Selecione:
+                $installer = $session.CreateUpdateInstaller()
+                $installer.Updates = $updatesToInstall
+                $installationResult = $installer.Install()
 
-if "%report_choice%"=="1" (
-echo.
-echo [RELATeeRIO RESUMIDO]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; Generate-SystemReport | Out-Null }"
-pause
-)
-if "%report_choice%"=="2" (
-echo.
-echo [RELATeeRIO COMPLETO]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; $computerInfo = Get-ComputerInfo; $diskInfo = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' }; $memoryInfo = @{ Total = [math]::Round($computerInfo.OsTotalVisibleMemorySize / 1MB, 2); Free = [math]::Round($computerInfo.OsFreePhysicalMemory / 1MB, 2) }; Write-Host '`n=== INFORMAeEES DETALHADAS ===' -ForegroundColor Cyan; $computerInfo | Format-List *; Write-Host '`n=== DISCOS ===' -ForegroundColor Cyan; $diskInfo | Format-Table -AutoSize; Write-Host '`n=== MEMeeRIA ===' -ForegroundColor Cyan; Write-Host ('Total: '+$memoryInfo.Total+' MB | Livre: '+$memoryInfo.Free+' MB') }"
-pause
-)
-if "%report_choice%"=="3" (
-echo.
-set /p report_name=Digite o nome para o arquivo (sem extensao):
-echo [SALVANDO RELATeeRIO...]
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; $reportPath = Join-Path -Path '%LOG_DIR%' -ChildPath ('%report_name%_'+$(Get-Date -Format 'yyyy-MM-dd_HH-mm')+'.txt'); Generate-SystemReport *>&1 | Out-File -FilePath $reportPath -Force; Write-Host ('Relatório salvo em: '+$reportPath) -ForegroundColor Green }"
-pause
-)
-goto main_menu
+                if ($installationResult.ResultCode -eq 2) {
+                    Write-Log "Atualizações instaladas com sucesso!" -Level "INFO"
+                    return $true
+                } else {
+                    Write-Log "Falha na instalação" -Level "WARNING"
+                    return $false
+                }
+            } else {
+                Write-Log "Nenhuma atualização disponível" -Level "INFO"
+                return $true
+            }
+        }
+    } catch {
+        Write-Log "Erro durante atualização do sistema: $_" -Level "ERROR"
+        return $false
+    }
+}
 
-:full_maintenance
-cls
-echo.
-echo [MANUTENeÇeO COMPLETA]
-echo.
-echo Este processo pode levar vários minutos...
-echo.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { Import-Module '%PS_SCRIPT%'; Write-Host '=== ATUALIZAeÇeO ===' -ForegroundColor Cyan; $updateResult = Update-System; Write-Host '`n=== LIMPEZA ===' -ForegroundColor Cyan; $cleanResult = Clean-TempFiles; if ($cleanResult) { Write-Host ('Arquivos removidos: '+$cleanResult.FilesRemoved+' ('+$cleanResult.MBRemoved+' MB)') -ForegroundColor Green }; Write-Host '`n=== OTIMIZAeÇeO ===' -ForegroundColor Cyan; $optimizeResult = Optimize-SystemStartup; if ($optimizeResult.OptimizedVolumes.Count -gt 0) { Write-Host ('Unidades otimizadas: '+($optimizeResult.OptimizedVolumes -join ', ')) -ForegroundColor Green }; Write-Host '`n=== RELATeeRIO ===' -ForegroundColor Cyan; Generate-SystemReport | Out-Null; Write-Host '`n=== CONCLUSeO ===' -ForegroundColor Cyan; Write-Host 'Manutençao completa finalizada' -ForegroundColor Green }"
-pause
-goto main_menu
+# Função para atualizar definições de segurança (corrigida)
+function Update-SecurityDefinitions {
+    try {
+        if (Get-Command Update-MpSignature -ErrorAction SilentlyContinue) {
+            Write-Log "Atualizando definições do Windows Defender..." -Level "INFO"
+            Update-MpSignature -UpdateSource MicrosoftUpdateServer -ErrorAction Stop
+            return $true
+        }
+        else {
+            Write-Log "Windows Defender não disponível" -Level "WARNING"
+            return $false
+        }
+    } catch {
+        Write-Log "Erro ao atualizar definições de segurança: $_" -Level "ERROR"
+        return $false
+    }
+}
+
+# Função para limpar arquivos temporários (melhorada)
+function Clean-TempFiles {
+    param (
+        [switch]$Advanced
+    )
+
+    try {
+        Write-Log "Iniciando limpeza de arquivos temporários..." -Level "INFO"
+        $bytesRemoved = 0
+        $filesRemoved = 0
+
+        # Pastas básicas para limpar
+        $tempFolders = @(
+            [System.IO.Path]::GetTempPath(),
+            "$env:SystemRoot\Temp",
+            "$env:TEMP"
+        )
+
+        # Adicionar pastas avançadas se solicitado
+        if ($Advanced) {
+            $tempFolders += @(
+                "$env:SystemRoot\SoftwareDistribution\Download",
+                "$env:SystemRoot\Prefetch",
+                "$env:LOCALAPPDATA\Temp"
+            )
+        }
+
+        foreach ($folder in $tempFolders) {
+            try {
+                if (Test-Path -Path $folder) {
+                    Write-Log "Limpando pasta: $folder" -Level "INFO"
+                    $filesToRemove = Get-ChildItem -Path $folder -Recurse -Force -ErrorAction SilentlyContinue |
+                            Where-Object { $_.FullName -notlike "*$($LogDir)*" }
+
+                    # Calcular tamanho total antes de remover
+                    $size = ($filesToRemove | Measure-Object -Property Length -Sum).Sum
+                    $bytesRemoved += $size
+                    $filesRemoved += $filesToRemove.Count
+
+                    # Remover arquivos
+                    $filesToRemove | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            } catch {
+                Write-Log "Erro ao limpar $folder : $_" -Level "WARNING"
+            }
+        }
+
+        $mbRemoved = [math]::Round($bytesRemoved / 1MB, 2)
+        Write-Log "Limpeza concluída: $filesRemoved arquivos removidos ($mbRemoved MB)" -Level "INFO"
+        return @{
+            BytesRemoved = $bytesRemoved
+            FilesRemoved = $filesRemoved
+            MBRemoved = $mbRemoved
+        }
+    } catch {
+        Write-Log "Erro durante limpeza de arquivos temporários: $_" -Level "ERROR"
+        return $false
+    }
+}
+
+# Função para limpar cache DNS (corrigida)
+function Clear-DNSCache {
+    try {
+        Write-Log "Limpando cache DNS..." -Level "INFO"
+        ipconfig /flushdns | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "Cache DNS limpo com sucesso" -Level "INFO"
+            return $true
+        } else {
+            Write-Log "Falha ao limpar cache DNS" -Level "WARNING"
+            return $false
+        }
+    } catch {
+        Write-Log "Erro ao limpar cache DNS: $_" -Level "ERROR"
+        return $false
+    }
+}
+
+# Função para verificar portas abertas (melhorada)
+function Get-OpenPorts {
+    param (
+        [int]$TopCount = 10
+    )
+
+    try {
+        Write-Log "Verificando conexões de rede ativas..." -Level "INFO"
+
+        $netstat = netstat -ano | Select-String "ESTABLISHED" | ForEach-Object {
+            $line = $_ -replace '\s+', ' ' -split ' '
+            [PSCustomObject]@{
+                Protocol = $line[1]
+                LocalAddress = $line[2]
+                ForeignAddress = $line[3]
+                State = $line[4]
+                PID = $line[5]
+            }
+        }
+
+        if ($netstat) {
+            $topConnections = $netstat | Group-Object -Property ForeignAddress |
+                    Sort-Object -Property Count -Descending |
+                    Select-Object -First $TopCount -Property Count, Name,
+                    @{Name="Process"; Expression={(Get-Process -Id $_.Group[0].PID -ErrorAction SilentlyContinue).Name}}
+
+            return $topConnections
+        } else {
+            Write-Log "Nenhuma conexão encontrada" -Level "INFO"
+            return $null
+        }
+    } catch {
+        Write-Log "Erro ao verificar portas abertas: $_" -Level "ERROR"
+        return $null
+    }
+}
+
+# Função para verificar erros nos logs do sistema (melhorada)
+function Get-SystemErrors {
+    param (
+        [int]$HoursBack = 24
+    )
+
+    try {
+        $startTime = (Get-Date).AddHours(-$HoursBack)
+        Write-Log "Buscando erros do sistema nas últimas $HoursBack horas..." -Level "INFO"
+
+        $events = Get-WinEvent -FilterHashtable @{
+            LogName = 'System', 'Application'
+            Level = 1, 2  # Error e Critical
+            StartTime = $startTime
+        } -MaxEvents 50 -ErrorAction SilentlyContinue | Where-Object {
+            $_.TimeCreated -ge $startTime
+        }
+
+        if ($events) {
+            $errorSummary = $events | Group-Object -Property Id, ProviderName |
+                    Sort-Object -Property Count -Descending |
+                    Select-Object Count,
+                    @{Name="ID"; Expression={($_.Name -split ',')[0]}},
+                    @{Name="Source"; Expression={($_.Name -split ',')[1]}},
+                    @{Name="Message"; Expression={($_.Group[0].Message -split "`n")[0]}}
+
+            Write-Log "Encontrados $($events.Count) erros nos logs do sistema" -Level "WARNING"
+            return $errorSummary
+        } else {
+            Write-Log "Nenhum erro encontrado nos logs do sistema nas últimas $HoursBack horas" -Level "INFO"
+            return $null
+        }
+    } catch {
+        Write-Log "Erro ao buscar logs do sistema: $_" -Level "ERROR"
+        return $null
+    }
+}
+
+# Função para verificar serviços críticos (melhorada)
+function Test-CriticalServices {
+    $criticalServices = @(
+        "wuauserv",      # Windows Update
+        "WinDefend",     # Windows Defender
+        "wscsvc",        # Security Center
+        "Dhcp",          # DHCP Client
+        "Dnscache",      # DNS Client
+        "EventLog",      # Event Log
+        "MpsSvc"         # Windows Firewall
+    )
+
+    $results = @()
+
+    foreach ($service in $criticalServices) {
+        try {
+            $svc = Get-Service -Name $service -ErrorAction SilentlyContinue
+
+            if ($svc) {
+                $results += [PSCustomObject]@{
+                    Name = $svc.DisplayName
+                    Status = $svc.Status
+                    StartType = (Get-CimInstance -ClassName Win32_Service -Filter "Name='$service'").StartMode
+                    IsOK = ($svc.Status -eq "Running")
+                }
+            } else {
+                $results += [PSCustomObject]@{
+                    Name = $service
+                    Status = "Não encontrado"
+                    StartType = "N/A"
+                    IsOK = $false
+                }
+                Write-Log "Serviço crítico '$service' não foi encontrado" -Level "WARNING"
+            }
+        } catch {
+            Write-Log "Erro ao verificar serviço $service : $_" -Level "ERROR"
+        }
+    }
+
+    return $results
+}
+
+# Função para otimizar discos (nova)
+function Optimize-Disks {
+    try {
+        Write-Log "Otimizando volumes..." -Level "INFO"
+        $optimizedVolumes = @()
+
+        if (Get-Command Optimize-Volume -ErrorAction SilentlyContinue) {
+            Get-Volume | Where-Object {
+                $_.DriveType -eq 'Fixed' -and $_.DriveLetter -ne $null
+            } | ForEach-Object {
+                try {
+                    Write-Log "Otimizando volume $($_.DriveLetter)..." -Level "INFO"
+                    Optimize-Volume -DriveLetter $_.DriveLetter -ErrorAction Stop
+                    $optimizedVolumes += $_.DriveLetter
+                } catch {
+                    Write-Log "Erro ao otimizar volume $($_.DriveLetter): $_" -Level "WARNING"
+                }
+            }
+        } else {
+            Write-Log "Cmdlet Optimize-Volume não disponível" -Level "WARNING"
+            return $null
+        }
+
+        if ($optimizedVolumes.Count -gt 0) {
+            Write-Log "Otimização concluída para volumes: $($optimizedVolumes -join ', ')" -Level "INFO"
+            return $optimizedVolumes
+        } else {
+            Write-Log "Nenhum volume otimizado" -Level "WARNING"
+            return $null
+        }
+    } catch {
+        Write-Log "Erro durante otimização de volumes: $_" -Level "ERROR"
+        return $null
+    }
+}
+
+# Função para gerar relatório do sistema (melhorada)
+function Generate-SystemReport {
+    param (
+        [switch]$Brief,
+        [switch]$Detailed
+    )
+
+    try {
+        Write-Log "Gerando relatório do sistema..." -Level "INFO"
+
+        # Informações básicas do sistema
+        $osInfo = Get-WmiObject Win32_OperatingSystem
+        $computerInfo = Get-WmiObject Win32_ComputerSystem
+        $biosInfo = Get-WmiObject Win32_BIOS
+        $memory = Get-MemoryUsage
+
+        # Uso de disco
+        $diskInfo = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' } |
+                Select-Object DriveLetter, FileSystemLabel,
+                @{Name="Size(GB)"; Expression={[math]::Round($_.Size / 1GB, 2)}},
+                @{Name="Free(GB)"; Expression={[math]::Round($_.SizeRemaining / 1GB, 2)}},
+                @{Name="Free%"; Expression={[math]::Round(($_.SizeRemaining / $_.Size) * 100, 2)}}
+
+        # Processos que mais consomem recursos
+        $topProcessesCPU = Get-Process | Sort-Object -Property CPU -Descending |
+                Select-Object -First 5 -Property ProcessName, Id, CPU
+        $topProcessesMem = Get-Process | Sort-Object -Property WorkingSet -Descending |
+                Select-Object -First 5 -Property ProcessName, Id,
+                @{Name="Memory(MB)"; Expression={[math]::Round($_.WorkingSet / 1MB, 2)}}
+
+        # Exibir relatório
+        if ($Brief) {
+            Write-Host "`n=== RELATÓRIO RESUMIDO ===" -ForegroundColor Green
+            Write-Host "Sistema Operacional: $($osInfo.Caption) ($($osInfo.Version))"
+            Write-Host "Fabricante: $($computerInfo.Manufacturer)"
+            Write-Host "Modelo: $($computerInfo.Model)"
+            Write-Host "Processador: $($computerInfo.SystemFamily)"
+            Write-Host "Memória: $($memory.Total) MB total ($($memory.Used) MB usado - $($memory.PercentUsed)%)"
+
+            Write-Host "`nDiscos:" -ForegroundColor Yellow
+            $diskInfo | Format-Table -AutoSize
+
+            Write-Host "`nProcessos (CPU):" -ForegroundColor Yellow
+            $topProcessesCPU | Format-Table -AutoSize
+
+            Write-Host "`nProcessos (Memória):" -ForegroundColor Yellow
+            $topProcessesMem | Format-Table -AutoSize
+        }
+
+        if ($Detailed) {
+            Write-Host "`n=== RELATÓRIO COMPLETO ===" -ForegroundColor Cyan
+            Write-Host "`n► INFORMAÇÕES DO SISTEMA" -ForegroundColor Yellow
+            Write-Host "  Nome: $($computerInfo.Name)"
+            Write-Host "  Domínio: $($computerInfo.Domain)"
+            Write-Host "  Fabricante: $($computerInfo.Manufacturer)"
+            Write-Host "  Modelo: $($computerInfo.Model)"
+            Write-Host "  Tipo: $($computerInfo.SystemType)"
+            Write-Host "  Número de Processadores: $($computerInfo.NumberOfProcessors)"
+            Write-Host "  Número de Núcleos: $($computerInfo.NumberOfLogicalProcessors)"
+
+            Write-Host "`n► SISTEMA OPERACIONAL" -ForegroundColor Yellow
+            Write-Host "  Nome: $($osInfo.Caption)"
+            Write-Host "  Versão: $($osInfo.Version)"
+            Write-Host "  Build: $($osInfo.BuildNumber)"
+            Write-Host "  Arquitetura: $($osInfo.OSArchitecture)"
+            Write-Host "  Diretório: $($osInfo.WindowsDirectory)"
+            Write-Host "  Último Boot: $($osInfo.LastBootUpTime)"
+            Write-Host "  Tempo de Atividade: $((Get-Date) - $osInfo.ConvertToDateTime($osInfo.LastBootUpTime))"
+
+            Write-Host "`n► BIOS" -ForegroundColor Yellow
+            Write-Host "  Fabricante: $($biosInfo.Manufacturer)"
+            Write-Host "  Versão: $($biosInfo.SMBIOSBIOSVersion)"
+            Write-Host "  Data: $($biosInfo.ReleaseDate)"
+            Write-Host "  Serial: $($biosInfo.SerialNumber)"
+
+            Write-Host "`n► MEMÓRIA" -ForegroundColor Yellow
+            Write-Host "  Total: $($memory.Total) MB"
+            Write-Host "  Usada: $($memory.Used) MB ($($memory.PercentUsed)%)"
+            Write-Host "  Livre: $($memory.Free) MB"
+
+            Write-Host "`n► DISCOS" -ForegroundColor Yellow
+            $diskInfo | Format-Table -AutoSize
+
+            Write-Host "`n► PROCESSOS (TOP 5 CPU)" -ForegroundColor Yellow
+            $topProcessesCPU | Format-Table -AutoSize
+
+            Write-Host "`n► PROCESSOS (TOP 5 MEMÓRIA)" -ForegroundColor Yellow
+            $topProcessesMem | Format-Table -AutoSize
+
+            Write-Host "`n► SERVIÇOS CRÍTICOS" -ForegroundColor Yellow
+            Test-CriticalServices | Format-Table -AutoSize
+        }
+
+        return $true
+    } catch {
+        Write-Log "Erro ao gerar relatório do sistema: $_" -Level "ERROR"
+        return $false
+    }
+}
+
+# Exportar funções para uso no script principal
+Export-ModuleMember -Function *
