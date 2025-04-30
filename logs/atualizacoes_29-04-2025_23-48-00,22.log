@@ -1,0 +1,26 @@
+﻿**********************
+Início da transcrição do Windows PowerShell
+Hora de início: 20250429234810
+Nome de Usuário: MOACIRJR\Moacir
+Executar como Usuário: MOACIRJR\Moacir
+Nome da Configuração: 
+Computador: MOACIRJR (Microsoft Windows NT 10.0.26100.0)
+Aplicativo Host: powershell -NoProfile -ExecutionPolicy Bypass -Command Start-Transcript -Path 'C:\Users\Moacir\IdeaProjects\SysBot\logs\atualizacoes_29-04-2025_23-48-00,22.log'; $session = New-Object -ComObject Microsoft.Update.Session; $searcher = $session.CreateUpdateSearcher(); Write-Host 'Buscando atualiza├º├Áes...'; $result = $searcher.Search('IsInstalled=0'); if ($result.Updates.Count -gt 0) { Write-Host 'Encontradas atualiza├º├Áes'; $updates = New-Object -ComObject Microsoft.Update.UpdateColl; $result.Updates | ForEach-Object { $updates.Add($_) | Out-Null }; $installer = $session.CreateUpdateInstaller(); $installer.Updates = $updates; $installer.Install() } else { Write-Host 'Nenhuma atualiza├º├úo dispon├¡vel.' }; Stop-Transcript
+ID do Processo: 2224
+PSVersion: 5.1.26100.3912
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.3912
+BuildVersion: 10.0.26100.3912
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcrição iniciada, o arquivo de saída é C:\Users\Moacir\IdeaProjects\SysBot\logs\atualizacoes_29-04-2025_23-48-00,22.log
+Buscando atualiza├º├Áes...
+Encontradas atualiza├º├Áes
+
+**********************
+Fim da transcrição do Windows PowerShell
+Hora de término: 20250429234818
+**********************
