@@ -1,21 +1,18 @@
 @echo off
-:: SysBot Launcher v3.2 - Manutencao Avancada do Sistema
-title SysBot - Ferramentas Avancadas de Sistema
+title SysBot - Ferramentas Avançadas de Sistema
 color 0A
 setlocal enabledelayedexpansion
 
-:: Definir codificacao sem caracteres especiais problemáticos
 chcp 850 >nul
-
-:: Verificar e solicitar privilegios de administrador
+:: Verificar e solicitar privilégios de administrador
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Solicitando privilegios de administrador...
+    echo Solicitando privilégios de administrador...
     powershell -Command "Start-Process -Verb RunAs -FilePath '%~dpnx0' -ArgumentList '%*'"
     exit /b
 )
 
-:: Variaveis de diretorio e data/hora
+:: Variáveis de diretório e data/hora
 set "ROOT_DIR=%~dp0"
 set "LOG_DIR=%ROOT_DIR%logs"
 set "DATA_HORA=%date:~6,4%-%date:~3,2%-%date:~0,2%_%time:~0,2%-%time:~3,2%-%time:~6,2%"
@@ -65,7 +62,7 @@ if %opcao_atualizacao%==1 (
     echo.
     echo [VERIFICANDO ATUALIZACOES DO WINDOWS...]
     echo Registrando em %LOG_DIR%\atualizacoes_%DATA_HORA%.log
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Transcript -Path '%LOG_DIR%\atualizacoes_%DATA_HORA%.log'; UsoClient StartInteractiveScan; Stop-Transcript"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "UsoClient StartInteractiveScan" > "%LOG_DIR%\atualizacoes_%DATA_HORA%.log" 2>&1
     type "%LOG_DIR%\atualizacoes_%DATA_HORA%.log"
     pause
 )
@@ -73,7 +70,7 @@ if %opcao_atualizacao%==2 (
     echo.
     echo [ATUALIZANDO PACOTES VIA WINGET...]
     echo Registrando em %LOG_DIR%\winget_%DATA_HORA%.log
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Transcript -Path '%LOG_DIR%\winget_%DATA_HORA%.log'; winget upgrade --all --accept-package-agreements --accept-source-agreements; Stop-Transcript"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "winget upgrade --all --accept-package-agreements --accept-source-agreements" > "%LOG_DIR%\winget_%DATA_HORA%.log" 2>&1
     type "%LOG_DIR%\winget_%DATA_HORA%.log"
     pause
 )
@@ -128,10 +125,10 @@ if %opcao_hardware%==4 (
     powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$mem = Get-CimInstance Win32_PhysicalMemory; $os = Get-CimInstance Win32_OperatingSystem; ^
     $total = [math]::Round($os.TotalVisibleMemorySize/1MB,2); $free = [math]::Round($os.FreePhysicalMemory/1MB,2); ^
-    $used = $total - $free; ^
+    $used = [math]::Round($total - $free, 2); ^
     Write-Host 'Detalhes dos Modulos de Memoria:'; ^
-    $mem | Select-Object Manufacturer, PartNumber, Speed, Capacity | Format-Table -AutoSize; ^
-    Write-Host ''; Write-Host 'Resumo: Total: ' $total 'GB | Usado: ' $used 'GB | Livre: ' $free 'GB'"
+    $mem | Select-Object Manufacturer, PartNumber, Speed, @{Name='CapacidadeGB';Expression={[math]::Round($_.Capacity/1GB,2)}} | Format-Table -AutoSize; ^
+    Write-Host ''; Write-Host ('Resumo: Total: {0} GB | Usado: {1} GB | Livre: {2} GB' -f $total, $used, $free)"
     pause
 )
 if %opcao_hardware%==5 (
@@ -139,24 +136,34 @@ if %opcao_hardware%==5 (
     pause
 )
 if %opcao_hardware%==6 (
-    echo Gerando relatorio em %LOG_DIR%\hardware_%DATA_HORA%.log
+    set "relatorio=%LOG_DIR%\hardware_%DATA_HORA%.log"
+    echo Gerando relatorio em %relatorio%
     (
         echo === INFORMACOES DO SISTEMA ===
         systeminfo
         echo.
         echo === CPU ===
-        wmic cpu get /format:list
+        wmic cpu get Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed,CurrentClockSpeed,L2CacheSize,L3CacheSize /format:list
         echo.
         echo === MEMORIA ===
-        powershell -Command "Get-CimInstance Win32_PhysicalMemory | Format-List"
+        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$mem = Get-CimInstance Win32_PhysicalMemory; $os = Get-CimInstance Win32_OperatingSystem; ^
+        $total = [math]::Round($os.TotalVisibleMemorySize/1MB,2); $free = [math]::Round($os.FreePhysicalMemory/1MB,2); ^
+        $used = [math]::Round($total - $free, 2); ^
+        'Detalhes dos Modulos de Memoria:'; ^
+        $mem | Select-Object Manufacturer, PartNumber, Speed, @{Name='CapacidadeGB';Expression={[math]::Round($_.Capacity/1GB,2)}} | Format-Table -AutoSize | Out-String; ^
+        ''; ^
+        ('Resumo: Total: {0} GB | Usado: {1} GB | Livre: {2} GB' -f $total, $used, $free)"
         echo.
         echo === GPU ===
-        powershell -Command "Get-WmiObject Win32_VideoController | Format-List"
+        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "Get-WmiObject Win32_VideoController | Select-Object Name, DriverVersion, @{Name='MemoriaGB';Expression={[math]::Round($_.AdapterRAM/1GB,2)}} | Format-Table -AutoSize | Out-String"
         echo.
         echo === DISCO ===
-        powershell -Command "Get-PhysicalDisk | Format-List"
-    ) > "%LOG_DIR%\hardware_%DATA_HORA%.log"
-    type "%LOG_DIR%\hardware_%DATA_HORA%.log" | more
+        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "Get-PhysicalDisk | Select-Object FriendlyName, MediaType, @{Name='TamanhoGB';Expression={[math]::Round($_.Size/1GB,2)}}, HealthStatus | Format-Table -AutoSize | Out-String"
+    ) > "%relatorio%"
+    type "%relatorio%" | more
     pause
 )
 goto menu_principal
@@ -192,7 +199,8 @@ if %opcao_rede%==3 (
 )
 if %opcao_rede%==4 (
     echo [TESTANDO VELOCIDADE DA INTERNET...]
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "if (-not (Get-Command speedtest -ErrorAction SilentlyContinue)) { winget install --id=Ookla.Speedtest -e --accept-source-agreements --accept-package-agreements }; speedtest"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+      "if (-not (Get-Command speedtest -ErrorAction SilentlyContinue)) { winget install --id=Ookla.Speedtest.CLI -e --accept-source-agreements --accept-package-agreements }; speedtest --accept-license --accept-gdpr"
     pause
 )
 if %opcao_rede%==5 (

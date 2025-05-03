@@ -117,5 +117,9 @@ function Verificar-ServicosCriticos {
     }
 }
 
-# Exportar funções
-Export-ModuleMember -Function Verificar-MemoriaDetalhada, Verificar-PortasAbertas, Verificar-ErrosSistema, Verificar-ServicosCriticos
+# Exportar funções do módulo
+Export-ModuleMember -Function `
+    Verificar-MemoriaDetalhada, `
+    Verificar-PortasAbertas, `
+    Verificar-ErrosSistema, `
+    Verificar-ServicosCriticos

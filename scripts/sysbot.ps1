@@ -1,3 +1,4 @@
+# Função: Cabeçalho do menu
 function Write-Header {
     Clear-Host
     Write-Host "`n================== SYSBOT v3.1 ==================" -ForegroundColor Cyan
@@ -5,6 +6,7 @@ function Write-Header {
     Write-Host "=================================================" -ForegroundColor Cyan
 }
 
+# Função: Pausa até usuário pressionar tecla
 function Pausar {
     Write-Host "`nPressione qualquer tecla para continuar..." -ForegroundColor Yellow
     [void][System.Console]::ReadKey($true)
@@ -124,29 +126,5 @@ function Criar-Relatorio {
     }
 }
 
-# Menu principal
-do {
-    Write-Header
-    Write-Host " Selecione uma opção:" -ForegroundColor Yellow
-    Write-Host " [1] Verificar memória RAM"
-    Write-Host " [2] Verificar atualizações do Windows"
-    Write-Host " [3] Executar limpeza básica"
-    Write-Host " [4] Otimizar discos"
-    Write-Host " [5] Verificar drivers recentes"
-    Write-Host " [6] Verificar disco (chkdsk)"
-    Write-Host " [7] Gerar relatório do sistema"
-    Write-Host " [0] Sair"
-    $opcao = Read-Host "`nDigite o número da opção desejada"
-
-    switch ($opcao) {
-        "1" { Verificar-MemoriaRAM; Pausar }
-        "2" { Verificar-Atualizacoes; Pausar }
-        "3" { Limpeza-Basica; Pausar }
-        "4" { Otimizacao-Disco; Pausar }
-        "5" { Verificar-Drivers; Pausar }
-        "6" { Verificar-Disco; Pausar }
-        "7" { Criar-Relatorio; Pausar }
-        "0" { Write-Host "`nSaindo do SysBot..." -ForegroundColor Cyan }
-        default { Write-Host "`nOpção inválida. Tente novamente." -ForegroundColor Red; Pausar }
-    }
-} while ($opcao -ne "0")
+# Exportação para uso como módulo
+Export-ModuleMember -Function Write-Header, Pausar, Verificar-MemoriaRAM, Verificar-Atualizacoes, Limpeza-Basica, Otimizacao-Disco, Verificar-Drivers, Verificar-Disco, Criar-Relatorio
