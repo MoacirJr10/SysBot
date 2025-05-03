@@ -1,8 +1,3 @@
-# SysBot v3.1 - Script de Manutenção e Otimização de Sistema
-# Desenvolvido por: [Seu Nome ou Equipe]
-# Data: 2025-04-29
-
-# Funções auxiliares
 function Write-Header {
     Clear-Host
     Write-Host "`n================== SYSBOT v3.1 ==================" -ForegroundColor Cyan
@@ -15,86 +10,118 @@ function Pausar {
     [void][System.Console]::ReadKey($true)
 }
 
+# Função: Verificar uso de memória RAM
 function Verificar-MemoriaRAM {
     Write-Host "`n[🧠] Verificando uso de memória RAM..." -ForegroundColor Magenta
-    Get-CimInstance Win32_OperatingSystem | ForEach-Object {
-        $total = [math]::Round($_.TotalVisibleMemorySize / 1MB, 2)
-        $livre = [math]::Round($_.FreePhysicalMemory / 1MB, 2)
+    try {
+        $dados = Get-CimInstance Win32_OperatingSystem
+        $total = [math]::Round($dados.TotalVisibleMemorySize / 1MB, 2)
+        $livre = [math]::Round($dados.FreePhysicalMemory / 1MB, 2)
         $uso = [math]::Round($total - $livre, 2)
-        $porcentagem = [math]::Round(($uso / $total) * 100, 2)
-        Write-Host " Total: $total GB | Em Uso: $uso GB ($porcentagem`%)" -ForegroundColor White
+        $percentual = [math]::Round(($uso / $total) * 100, 2)
+        Write-Host " Total: $total GB | Em Uso: $uso GB ($percentual`%)" -ForegroundColor White
+    } catch {
+        Write-Host " Erro ao verificar memória: $_" -ForegroundColor Red
     }
 }
 
+# Função: Verificar e instalar atualizações do Windows
 function Verificar-Atualizacoes {
     Write-Host "`n[🔄] Verificando atualizações do Windows..." -ForegroundColor Magenta
-    # Uso do PSWindowsUpdate módulo, se disponível
-    if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
-        Import-Module PSWindowsUpdate
+    try {
+        if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
+            Import-Module PSWindowsUpdate
+        } else {
+            Write-Host " Módulo PSWindowsUpdate não encontrado. Instalando..." -ForegroundColor Yellow
+            Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
+            Import-Module PSWindowsUpdate
+        }
         Get-WindowsUpdate -AcceptAll -Install -AutoReboot
-    } else {
-        Write-Host " Módulo PSWindowsUpdate não encontrado. Instalando..." -ForegroundColor Yellow
-        Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
-        Import-Module PSWindowsUpdate
-        Get-WindowsUpdate -AcceptAll -Install -AutoReboot
+    } catch {
+        Write-Host " Erro ao verificar atualizações: $_" -ForegroundColor Red
     }
 }
 
+# Função: Limpeza básica do sistema
 function Limpeza-Basica {
     Write-Host "`n[🧹] Executando limpeza básica..." -ForegroundColor Magenta
-    Start-Process "cleanmgr.exe" -ArgumentList "/sagerun:1" -Wait
+    try {
+        Start-Process "cleanmgr.exe" -ArgumentList "/sagerun:1" -Wait
+    } catch {
+        Write-Host " Erro ao executar limpeza: $_" -ForegroundColor Red
+    }
 }
 
+# Função: Otimizar discos fixos
 function Otimizacao-Disco {
     Write-Host "`n[💾] Otimizando discos..." -ForegroundColor Magenta
-    Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' } | ForEach-Object {
-        Write-Host " Otimizando unidade $($_.DriveLetter):"
-        Optimize-Volume -DriveLetter $_.DriveLetter -Defrag -Verbose
+    try {
+        Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' } | ForEach-Object {
+            Write-Host " Otimizando unidade $($_.DriveLetter):"
+            Optimize-Volume -DriveLetter $_.DriveLetter -Defrag -Verbose
+        }
+    } catch {
+        Write-Host " Erro ao otimizar discos: $_" -ForegroundColor Red
     }
 }
 
+# Função: Verificar drivers recentes
 function Verificar-Drivers {
     Write-Host "`n[🔍] Verificando drivers desatualizados..." -ForegroundColor Magenta
-    $drivers = Get-WmiObject Win32_PnPSignedDriver | Where-Object { $_.DriverProviderName -ne $null } | Sort-Object DriverDate -Descending
-    $recentes = $drivers | Select-Object DeviceName, DriverVersion, DriverDate -First 10
-    $recentes | Format-Table -AutoSize
+    try {
+        $drivers = Get-WmiObject Win32_PnPSignedDriver | Where-Object { $_.DriverProviderName } | Sort-Object DriverDate -Descending
+        $drivers | Select-Object DeviceName, DriverVersion, DriverDate -First 10 | Format-Table -AutoSize
+    } catch {
+        Write-Host " Erro ao listar drivers: $_" -ForegroundColor Red
+    }
 }
 
+# Função: Verificar integridade do disco
 function Verificar-Disco {
     Write-Host "`n[🧪] Verificando integridade do disco..." -ForegroundColor Magenta
-    Write-Host " Rodando chkdsk no próximo reinício..." -ForegroundColor Yellow
-    cmd /c "chkntfs /d"
-    cmd /c "chkntfs /c C:"
+    try {
+        Write-Host " Rodando chkdsk no próximo reinício..." -ForegroundColor Yellow
+        cmd /c "chkntfs /d"
+        cmd /c "chkntfs /c C:"
+    } catch {
+        Write-Host " Erro ao agendar verificação de disco: $_" -ForegroundColor Red
+    }
 }
 
+# Função: Gerar relatório completo do sistema
 function Criar-Relatorio {
-    $data = Get-Date -Format "yyyy-MM-dd_HH-mm"
-    $relatorio = "C:\SysBot-Relatorio_$data.txt"
+    try {
+        $data = Get-Date -Format "yyyy-MM-dd_HH-mm"
+        $relatorio = "C:\SysBot-Relatorio_$data.txt"
 
-    "==== RELATÓRIO SYSBOT v3.1 ====" | Out-File $relatorio
-    "Data: $(Get-Date)" | Out-File $relatorio -Append
-    "Usuário: $env:USERNAME" | Out-File $relatorio -Append
-    "Sistema: $((Get-CimInstance Win32_OperatingSystem).Caption)" | Out-File $relatorio -Append
+        "==== RELATÓRIO SYSBOT v3.1 ====" | Out-File $relatorio
+        "Data: $(Get-Date)" | Out-File $relatorio -Append
+        "Usuário: $env:USERNAME" | Out-File $relatorio -Append
+        "Sistema: $((Get-CimInstance Win32_OperatingSystem).Caption)" | Out-File $relatorio -Append
 
-    "`n[MEMÓRIA RAM]" | Out-File $relatorio -Append
-    Get-CimInstance Win32_OperatingSystem | ForEach-Object {
-        $total = [math]::Round($_.TotalVisibleMemorySize / 1MB, 2)
-        $livre = [math]::Round($_.FreePhysicalMemory / 1MB, 2)
+        "`n[MEMÓRIA RAM]" | Out-File $relatorio -Append
+        $dados = Get-CimInstance Win32_OperatingSystem
+        $total = [math]::Round($dados.TotalVisibleMemorySize / 1MB, 2)
+        $livre = [math]::Round($dados.FreePhysicalMemory / 1MB, 2)
         $uso = [math]::Round($total - $livre, 2)
-        $porcentagem = [math]::Round(($uso / $total) * 100, 2)
-        " Total: $total GB | Em Uso: $uso GB ($porcentagem`%)" | Out-File $relatorio -Append
+        $percentual = [math]::Round(($uso / $total) * 100, 2)
+        " Total: $total GB | Em Uso: $uso GB ($percentual`%)" | Out-File $relatorio -Append
+
+        "`n[DRIVERS RECENTES]" | Out-File $relatorio -Append
+        Get-WmiObject Win32_PnPSignedDriver | Where-Object { $_.DriverProviderName } |
+                Sort-Object DriverDate -Descending |
+                Select-Object DeviceName, DriverVersion, DriverDate -First 10 |
+                Format-Table -AutoSize | Out-String | Out-File $relatorio -Append
+
+        "`n[DISCOS]" | Out-File $relatorio -Append
+        Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' } | ForEach-Object {
+            " Unidade $($_.DriveLetter): $($_.FileSystemLabel) - Espaço livre: $([math]::Round($_.SizeRemaining / 1GB, 2)) GB" | Out-File $relatorio -Append
+        }
+
+        Write-Host "`n📄 Relatório gerado em: $relatorio" -ForegroundColor Green
+    } catch {
+        Write-Host " Erro ao gerar relatório: $_" -ForegroundColor Red
     }
-
-    "`n[DRIVERS RECENTES]" | Out-File $relatorio -Append
-    $drivers = Get-WmiObject Win32_PnPSignedDriver | Where-Object { $_.DriverProviderName -ne $null } | Sort-Object DriverDate -Descending
-    $drivers | Select-Object DeviceName, DriverVersion, DriverDate -First 10 | Format-Table -AutoSize | Out-String | Out-File $relatorio -Append
-
-    "`n[DISCOS]" | Out-File $relatorio -Append
-    Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' } | ForEach-Object {
-        " Unidade $($_.DriveLetter): $($_.FileSystemLabel) - Espaço livre: $([math]::Round($_.SizeRemaining / 1GB, 2)) GB" | Out-File $relatorio -Append
-    }
-
-    Write-Host "`n📄 Relatório gerado em: $relatorio" -ForegroundColor Green
 }
 
 # Menu principal

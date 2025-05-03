@@ -1,0 +1,88 @@
+﻿**********************
+Início da transcrição do Windows PowerShell
+Hora de início: 20250430161344
+Nome de Usuário: MOACIRJR\Moacir
+Executar como Usuário: MOACIRJR\Moacir
+Nome da Configuração: 
+Computador: MOACIRJR (Microsoft Windows NT 10.0.26100.0)
+Aplicativo Host: powershell -NoProfile -ExecutionPolicy Bypass -Command Start-Transcript -Path 'C:\Users\Moacir\IdeaProjects\SysBot\logs\winget_2025-04-30_16-13-23.log'; winget upgrade --all --accept-package-agreements --accept-source-agreements; Stop-Transcript
+ID do Processo: 13300
+PSVersion: 5.1.26100.3912
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.3912
+BuildVersion: 10.0.26100.3912
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcrição iniciada, o arquivo de saída é C:\Users\Moacir\IdeaProjects\SysBot\logs\winget_2025-04-30_16-13-23.log
+Nome                              ID                      Versão         Disponível    Origem
+---------------------------------------------------------------------------------------------
+Oh My Posh                        JanDeDobbeleer.OhMyPosh 25.19.0        25.20.0       winget
+Google Chrome                     Google.Chrome.EXE       135.0.7049.115 136.0.7103.49 winget
+Notion 4.9.1                      Notion.Notion           4.9.1          4.10.0        winget
+Página Inicial de Desenvolvimento Microsoft.DevHome       0.2000.758.0   0.2001.758.0  winget
+5 atualizações disponíveis.
+
+Os pacotes a seguir têm uma atualização disponível, mas exigem uma segmentação explícita para atualização:
+Nome    ID              Versão   Disponível Origem
+--------------------------------------------------
+Discord Discord.Discord 1.0.9170 1.0.9190   winget
+
+Instalando dependências:
+Este pacote requer as seguintes dependências:
+  - Pacotes
+      Microsoft.VCLibs.Desktop.14 [>= 14.0.24217.0]
+      Microsoft.WindowsAppRuntime.1.5
+(1/4) Encontrado Oh My Posh [JanDeDobbeleer.OhMyPosh] Versão 25.20.0
+Este aplicativo é licenciado para você pelo proprietário.
+A Microsoft não é responsável por, nem concede licenças a pacotes de terceiros.
+Baixando https://github.com/JanDeDobbeleer/oh-my-posh/releases/download/v25.20.0/install-x64.msi
+  ██████████████████████████████  5.71 MB / 5.71 MB
+Hash do instalador verificado com êxito
+Iniciando a instalação do pacote...
+Instalado com êxito
+
+(2/4) Encontrado Google Chrome (EXE) [Google.Chrome.EXE] Versão 136.0.7103.49
+Este aplicativo é licenciado para você pelo proprietário.
+A Microsoft não é responsável por, nem concede licenças a pacotes de terceiros.
+Baixando https://dl.google.com/release2/chrome/hhlkvkbqamlmu4vjicjai5gpvu_136.0.7103.49/136.0.7103.49_chrome_installer.e
+xe
+  ██████████████████████████████   115 MB /  115 MB
+Hash do instalador verificado com êxito
+Iniciando a instalação do pacote...
+Instalado com êxito
+
+(3/4) Encontrado Notion [Notion.Notion] Versão 4.10.0
+Este aplicativo é licenciado para você pelo proprietário.
+A Microsoft não é responsável por, nem concede licenças a pacotes de terceiros.
+Baixando https://desktop-release.notion-static.com/Notion%20Setup%204.10.0.exe
+  ██████████████████████████████  80.0 MB / 80.0 MB
+Hash do instalador verificado com êxito
+Iniciando a instalação do pacote...
+Instalado com êxito
+
+(4/4) Encontrado Dev Home (Preview) [Microsoft.DevHome] Versão 0.2001.758.0
+Este aplicativo é licenciado para você pelo proprietário.
+A Microsoft não é responsável por, nem concede licenças a pacotes de terceiros.
+(1/1) Encontrado Windows App Runtime 1.5 [Microsoft.WindowsAppRuntime.1.5] Versão 1.5.8
+Este aplicativo é licenciado para você pelo proprietário.
+A Microsoft não é responsável por, nem concede licenças a pacotes de terceiros.
+Baixando https://aka.ms/windowsappsdk/1.5/1.5.241107002/windowsappruntimeinstall-x64.exe
+  ██████████████████████████████  61.2 MB / 61.2 MB
+Hash do instalador verificado com êxito
+Iniciando a instalação do pacote...
+Instalado com êxito
+
+Hash do instalador verificado com êxito
+Iniciando a instalação do pacote...
+  ██████████████████████████████  100%
+Instalado com êxito
+
+16 pacotes têm números de versão que não podem ser determinados. Use --include-unknown para ver todos os resultados.
+1 os pacotes estão fixados e precisam ser atualizados explicitamente.
+**********************
+Fim da transcrição do Windows PowerShell
+Hora de término: 20250430161822
+**********************
