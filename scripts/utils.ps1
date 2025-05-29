@@ -1,125 +1,142 @@
-function Verificar-MemoriaDetalhada {
-    Write-Host "`n[🧠] Verificando uso detalhado da memória RAM..." -ForegroundColor Cyan
+# utils.ps1 - Módulo de funções para SYSBOT v3.1
+
+# Cabeçalho
+function Write-Header {
+    Clear-Host
+    Write-Host "`n================== SYSBOT v3.1 ==================" -ForegroundColor Cyan
+    Write-Host " Manutenção e Otimização do Sistema Windows"
+    Write-Host "=================================================" -ForegroundColor Cyan
+}
+
+# Pausa
+function Pausar {
+    Write-Host "`nPressione qualquer tecla para continuar..." -ForegroundColor Yellow
+    [void][System.Console]::ReadKey($true)
+}
+
+# Memória RAM
+function Verificar-MemoriaRAM {
+    Write-Host "`n[🧠] Verificando uso de memória RAM..." -ForegroundColor Magenta
     try {
         $dados = Get-CimInstance Win32_OperatingSystem
         $total = [math]::Round($dados.TotalVisibleMemorySize / 1MB, 2)
         $livre = [math]::Round($dados.FreePhysicalMemory / 1MB, 2)
-        $uso = $total - $livre
-        $percentual = [math]::Round(($uso / $total) * 100, 2)
-
-        Write-Host " ➜ Total: $total GB | Em Uso: $uso GB ($percentual`%) | Livre: $livre GB" -ForegroundColor White
+        $uso = [math]::Round($total - $livre, 2)
+        $percentual = if ($total -ne 0) { [math]::Round(($uso / $total) * 100, 2) } else { 0 }
+        Write-Host " Total: $total GB | Em Uso: $uso GB ($percentual`%)" -ForegroundColor White
     } catch {
-        Write-Host " ❌ Erro ao verificar memória: $_" -ForegroundColor Red
+        Write-Host " Erro ao verificar memória: $_" -ForegroundColor Red
     }
 }
 
-# Função para listar as portas abertas
-function Verificar-PortasAbertas {
-    param (
-        [int]$Quantidade = 10
-    )
-    Write-Host "`n[🌐] Verificando portas abertas (Top $Quantidade)..." -ForegroundColor Cyan
+# Atualizações do Windows
+function Verificar-Atualizacoes {
+    Write-Host "`n[🔄] Verificando atualizações do Windows..." -ForegroundColor Magenta
     try {
-        $conexoes = @()
-        $netstat = netstat -ano | Select-String "ESTABLISHED"
-
-        foreach ($linha in $netstat) {
-            $partes = $linha -replace '\s+', ' ' -split ' '
-            if ($partes.Length -ge 5) {
-                $proc = Get-Process -Id $partes[4] -ErrorAction SilentlyContinue
-                $conexoes += [PSCustomObject]@{
-                    Protocolo = $partes[0]
-                    EndLocal  = $partes[1]
-                    EndRemoto = $partes[2]
-                    Estado    = $partes[3]
-                    PID       = $partes[4]
-                    Processo  = if ($proc) { $proc.Name } else { "Desconhecido" }
-                }
-            }
+        if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+            Write-Host " Instalando módulo PSWindowsUpdate..." -ForegroundColor Yellow
+            # Permitir instalação silenciosa sem prompt (execução como admin requerida)
+            Install-Module -Name PSWindowsUpdate -Force -Confirm:$false -AllowClobber
         }
-
-        $agrupado = $conexoes | Group-Object -Property EndRemoto |
-                Sort-Object -Property Count -Descending |
-                Select-Object -First $Quantidade -Property Count, Name,
-                @{Name="Processo"; Expression={($_.Group[0].Processo)}}
-
-        if ($agrupado) {
-            $agrupado | Format-Table -AutoSize
-        } else {
-            Write-Host " Nenhuma conexão estabelecida encontrada." -ForegroundColor Yellow
-        }
+        Import-Module PSWindowsUpdate -Force
+        # Buscar, aceitar e instalar atualizações automaticamente
+        Get-WindowsUpdate -AcceptAll -Install -AutoReboot
     } catch {
-        Write-Host " ❌ Erro ao verificar portas: $_" -ForegroundColor Red
+        Write-Host " Erro ao verificar atualizações: $_" -ForegroundColor Red
     }
 }
 
-# Função para buscar erros recentes no sistema
-function Verificar-ErrosSistema {
-    param (
-        [int]$Horas = 24
-    )
-    Write-Host "`n[🚨] Verificando erros do sistema nas últimas $Horas horas..." -ForegroundColor Cyan
+# Limpeza do sistema
+function Limpeza-Basica {
+    Write-Host "`n[🧹] Executando limpeza básica..." -ForegroundColor Magenta
     try {
-        $inicio = (Get-Date).AddHours(-$Horas)
-        $eventos = Get-WinEvent -FilterHashtable @{
-            LogName   = @('System', 'Application')
-            Level     = @(1, 2)  # Error e Critical
-            StartTime = $inicio
-        } -MaxEvents 100 | Where-Object { $_.TimeCreated -ge $inicio }
+        # Use parâmetro /sagerun:1, é preciso configurar previamente cleanmgr /sageset:1 manualmente
+        Start-Process "cleanmgr.exe" -ArgumentList "/sagerun:1" -Wait
+    } catch {
+        Write-Host " Erro ao executar limpeza: $_" -ForegroundColor Red
+    }
+}
 
-        if ($eventos) {
-            $resumo = $eventos | Group-Object -Property Id, ProviderName |
-                    Sort-Object -Property Count -Descending |
-                    Select-Object Count,
-                    @{Name="ID"; Expression={($_.Name -split ',')[0]}},
-                    @{Name="Fonte"; Expression={($_.Name -split ',')[1]}},
-                    @{Name="Mensagem"; Expression={($_.Group[0].Message -split "`n")[0]}}
-
-            $resumo | Format-Table -AutoSize
-        } else {
-            Write-Host " ✅ Nenhum erro crítico encontrado nas últimas $Horas horas." -ForegroundColor Green
+# Otimização de disco
+function Otimizacao-Disco {
+    Write-Host "`n[💾] Otimizando discos..." -ForegroundColor Magenta
+    try {
+        Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' } | ForEach-Object {
+            Write-Host " Otimizando unidade $($_.DriveLetter):" -ForegroundColor Cyan
+            Optimize-Volume -DriveLetter $_.DriveLetter -Defrag -Verbose
         }
     } catch {
-        Write-Host " ❌ Erro ao buscar eventos do sistema: $_" -ForegroundColor Red
+        Write-Host " Erro ao otimizar discos: $_" -ForegroundColor Red
     }
 }
 
-# Função para checar serviços críticos
-function Verificar-ServicosCriticos {
-    Write-Host "`n[🔒] Verificando serviços críticos do sistema..." -ForegroundColor Cyan
-    $servicosCriticos = @(
-        "wuauserv",   # Windows Update
-        "WinDefend",  # Windows Defender
-        "wscsvc",     # Security Center
-        "Dhcp",       # DHCP Client
-        "Dnscache",   # DNS Client
-        "EventLog",   # Event Log
-        "MpsSvc"      # Windows Firewall
-    )
+# Verificação de drivers
+function Verificar-Drivers {
+    Write-Host "`n[🔍] Verificando drivers desatualizados..." -ForegroundColor Magenta
+    try {
+        Get-WmiObject Win32_PnPSignedDriver |
+                Where-Object { $_.DriverProviderName -and $_.DriverDate } |
+                Sort-Object DriverDate -Descending |
+                Select-Object -First 10 DeviceName, DriverVersion, @{Name='DriverDate';Expression={$_.DriverDate.ToShortDateString()}} |
+                Format-Table -AutoSize
+    } catch {
+        Write-Host " Erro ao listar drivers: $_" -ForegroundColor Red
+    }
+}
 
-    foreach ($servico in $servicosCriticos) {
-        try {
-            $svc = Get-Service -Name $servico -ErrorAction SilentlyContinue
+# Verificação de disco (agendada)
+function Verificar-Disco {
+    Write-Host "`n[🧪] Verificando integridade do disco..." -ForegroundColor Magenta
+    try {
+        Write-Host " Rodando chkdsk no próximo reinício..." -ForegroundColor Yellow
+        # Reseta agendamento para chkdsk
+        cmd /c "chkntfs /d" | Out-Null
+        # Agenda para verificar drive C: no próximo boot
+        cmd /c "chkntfs /c C:" | Out-Null
+    } catch {
+        Write-Host " Erro ao agendar verificação de disco: $_" -ForegroundColor Red
+    }
+}
 
-            if ($svc) {
-                $cim = Get-CimInstance -ClassName Win32_Service -Filter "Name='$servico'" -ErrorAction SilentlyContinue
-                $modo = if ($cim) { $cim.StartMode } else { "Desconhecido" }
-                $statusOK = ($svc.Status -eq "Running")
-                $cor = if ($statusOK) { "Green" } else { "Red" }
+# Geração de relatório
+function Criar-Relatorio {
+    Write-Host "`n[📄] Gerando relatório do sistema..." -ForegroundColor Magenta
+    try {
+        $data = Get-Date -Format "yyyy-MM-dd_HH-mm"
+        $relatorio = "C:\SysBot-Relatorio_$data.txt"
 
-                Write-Host " ➜ $($svc.DisplayName): $($svc.Status) (Início: $modo)" -ForegroundColor $cor
-            } else {
-                Write-Host " ❌ $servico: Não encontrado!" -ForegroundColor Red
-            }
-        } catch {
-            Write-Host " ❌ Erro ao verificar serviço $servico: $_" -ForegroundColor Red
+        "==== RELATÓRIO SYSBOT v3.1 ====" | Out-File $relatorio
+        "Data: $(Get-Date)" | Out-File $relatorio -Append
+        "Usuário: $env:USERNAME" | Out-File $relatorio -Append
+        "Sistema: $((Get-CimInstance Win32_OperatingSystem).Caption)" | Out-File $relatorio -Append
+
+        "`n[MEMÓRIA RAM]" | Out-File $relatorio -Append
+        $dados = Get-CimInstance Win32_OperatingSystem
+        $total = [math]::Round($dados.TotalVisibleMemorySize / 1MB, 2)
+        $livre = [math]::Round($dados.FreePhysicalMemory / 1MB, 2)
+        $uso = [math]::Round($total - $livre, 2)
+        $percentual = if ($total -ne 0) { [math]::Round(($uso / $total) * 100, 2) } else { 0 }
+        " Total: $total GB | Em Uso: $uso GB ($percentual`%)" | Out-File $relatorio -Append
+
+        "`n[DRIVERS RECENTES]" | Out-File $relatorio -Append
+        Get-WmiObject Win32_PnPSignedDriver |
+                Where-Object { $_.DriverProviderName -and $_.DriverDate } |
+                Sort-Object DriverDate -Descending |
+                Select-Object -First 10 DeviceName, DriverVersion, @{Name='DriverDate';Expression={$_.DriverDate.ToShortDateString()}} |
+                Format-Table -AutoSize | Out-String | Out-File $relatorio -Append
+
+        "`n[DISCOS]" | Out-File $relatorio -Append
+        Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' } | ForEach-Object {
+            " Unidade $($_.DriveLetter): $($_.FileSystemLabel) - Espaço livre: $([math]::Round($_.SizeRemaining / 1GB, 2)) GB" | Out-File $relatorio -Append
         }
+
+        Write-Host "`n📄 Relatório gerado em: $relatorio" -ForegroundColor Green
+    } catch {
+        Write-Host " Erro ao gerar relatório: $_" -ForegroundColor Red
     }
 }
 
-# Exportar funções do módulo
+# Exportações de funções públicas
 Export-ModuleMember -Function `
-    Verificar-MemoriaDetalhada, `
-    Verificar-PortasAbertas, `
-    Verificar-ErrosSistema, `
-    Verificar-ServicosCriticos
+    Write-Header, Pausar, Verificar-MemoriaRAM, Verificar-Atualizacoes, `
+    Limpeza-Basica, Otimizacao-Disco, Verificar-Drivers, Verificar-Disco, Criar-Relatorio
