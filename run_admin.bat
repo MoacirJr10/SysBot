@@ -17,8 +17,9 @@ set "ROOT_DIR=%~dp0"
 set "LOG_DIR=%ROOT_DIR%logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
-set "DATA_HORA=%date:~6,4%-%date:~3,2%-%date:~0,2%_%time:~0,2%-%time:~3,2%-%time:~6,2%"
-set "DATA_HORA=%DATA_HORA: =0%"
+:: Corrigir formato de data e hora
+for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "dt=%%a"
+set "DATA_HORA=%dt:~0,4%-%dt:~4,2%-%dt:~6,2%_%dt:~8,2%-%dt:~10,2%-%dt:~12,2%"
 
 :menu
 cls
@@ -61,34 +62,49 @@ set "opt_at=%errorlevel%"
 if %opt_at%==1 (
     set "log=%LOG_DIR%\windows_update_%DATA_HORA%.log"
     echo Verificando e instalando atualizacoes do Windows...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Install-Module PSWindowsUpdate -Force -Scope CurrentUser -ErrorAction SilentlyContinue; Import-Module PSWindowsUpdate; Get-WindowsUpdate -AcceptAll -Install -AutoReboot | Out-File '%log%' -Encoding UTF8"
-    type "%log%" & pause
+    echo Esta operacao pode demorar alguns minutos...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Install-Module PSWindowsUpdate -Force -Scope CurrentUser -AllowClobber -ErrorAction SilentlyContinue; Import-Module PSWindowsUpdate -ErrorAction SilentlyContinue; if (Get-Module PSWindowsUpdate) { Get-WindowsUpdate -AcceptAll -Install -AutoReboot | Out-File '!log!' -Encoding UTF8 } else { 'Modulo PSWindowsUpdate nao disponivel. Use Windows Update manualmente.' | Out-File '!log!' -Encoding UTF8 } } catch { $_.Exception.Message | Out-File '!log!' -Append -Encoding UTF8 }"
+    if exist "!log!" type "!log!"
+    pause
 )
 if %opt_at%==2 (
     set "log=%LOG_DIR%\winget_update_%DATA_HORA%.log"
     echo Atualizando programas via winget...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "winget upgrade --all --accept-package-agreements --accept-source-agreements | Out-File '%log%' -Encoding UTF8"
-    type "%log%" & pause
+    echo Verificando se winget esta disponivel...
+    where winget >nul 2>&1
+    if !errorlevel! equ 0 (
+        winget upgrade --all --accept-package-agreements --accept-source-agreements > "!log!" 2>&1
+    ) else (
+        echo winget nao encontrado. Instale o App Installer da Microsoft Store. > "!log!"
+    )
+    type "!log!"
+    pause
 )
 if %opt_at%==3 (
     set "log=%LOG_DIR%\sfc_%DATA_HORA%.log"
     echo Verificando integridade do sistema com SFC...
-    sfc /scannow > "%log%"
-    type "%log%" & pause
+    echo Esta operacao pode demorar varios minutos...
+    sfc /scannow > "!log!" 2>&1
+    type "!log!"
+    pause
 )
 if %opt_at%==4 (
     set "log=%LOG_DIR%\dism_%DATA_HORA%.log"
     echo Restaurando saude do sistema com DISM...
-    DISM /Online /Cleanup-Image /RestoreHealth > "%log%"
-    type "%log%" & pause
+    echo Esta operacao pode demorar varios minutos...
+    DISM /Online /Cleanup-Image /RestoreHealth > "!log!" 2>&1
+    type "!log!"
+    pause
 )
 if %opt_at%==5 (
     set "log=%LOG_DIR%\drivers_%DATA_HORA%.log"
-    echo Verificando drivers desatualizados...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-WmiObject Win32_PnPSignedDriver | Where-Object { $_.DeviceName -ne $null -and $_.DriverVersion -ne $null } | Select-Object DeviceName, DriverVersion, Manufacturer | Sort-Object DeviceName | Format-Table -AutoSize | Out-File '%log%' -Encoding UTF8"
-    type "%log%" | more & pause
+    echo Verificando drivers do sistema...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Get-WmiObject Win32_PnPSignedDriver | Where-Object { $_.DeviceName -ne $null -and $_.DriverVersion -ne $null } | Select-Object DeviceName, DriverVersion, Manufacturer | Sort-Object DeviceName | Format-Table -AutoSize | Out-File '!log!' -Encoding UTF8 } catch { 'Erro ao obter informacoes de drivers: ' + $_.Exception.Message | Out-File '!log!' -Encoding UTF8 }"
+    if exist "!log!" type "!log!" | more
+    pause
 )
-goto menu
+if %opt_at%==6 goto menu
+goto atualizacao
 
 :hardware
 cls
@@ -105,200 +121,282 @@ choice /c 123456 /n /m "Escolha uma opcao: "
 set "opt_hw=%errorlevel%"
 
 if %opt_hw%==1 (
-    systeminfo | findstr /B /C:"Nome do SO" /C:"Versao do SO" /C:"Fabricante" /C:"Modelo" /C:"Tipo do sistema" /C:"Versao do BIOS" /C:"Localidade"
+    echo === INFORMACOES DO SISTEMA ===
+    systeminfo | findstr /B /C:"Nome do SO" /C:"Versao do SO" /C:"Fabricante" /C:"Modelo" /C:"Tipo do sistema" /C:"Versao do BIOS" /C:"Localidade" /C:"Memoria fisica total"
     pause
 )
 if %opt_hw%==2 (
-    echo --- CPU ---
-    wmic cpu get Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed
+    echo === CPU ===
+    wmic cpu get Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed /format:table
     echo.
-    echo --- GPU ---
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_VideoController | Select Name, DriverVersion, @{Name='VRAM(MB)';Expression={$_.AdapterRAM/1MB}} | Format-Table -AutoSize"
+    echo === GPU ===
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Get-CimInstance Win32_VideoController | Where-Object { $_.Name -ne $null } | Select Name, DriverVersion, @{Name='VRAM_MB';Expression={[math]::Round($_.AdapterRAM/1MB,0)}} | Format-Table -AutoSize } catch { Write-Host 'Erro ao obter informacoes de GPU' }"
     echo.
-    echo --- MEMORIA ---
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$m=Get-CimInstance Win32_PhysicalMemory; $o=Get-CimInstance Win32_OperatingSystem; $t=[math]::Round($o.TotalVisibleMemorySize/1MB,2); $f=[math]::Round($o.FreePhysicalMemory/1MB,2); $u=$t-$f; $m | Select Manufacturer,PartNumber,Speed,@{Name='GB';Expression={[math]::Round($_.Capacity/1GB,2)}} | Format-Table; Write-Host ('Total: {0} GB | Usado: {1} GB | Livre: {2} GB' -f $t,$u,$f)"
+    echo === MEMORIA ===
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $memoria = Get-CimInstance Win32_PhysicalMemory; $so = Get-CimInstance Win32_OperatingSystem; $totalGB = [math]::Round($so.TotalVisibleMemorySize/1MB,2); $livreGB = [math]::Round($so.FreePhysicalMemory/1MB,2); $usadoGB = $totalGB - $livreGB; $memoria | Select Manufacturer, PartNumber, Speed, @{Name='Capacidade_GB';Expression={[math]::Round($_.Capacity/1GB,2)}} | Format-Table -AutoSize; Write-Host ('Total: {0} GB | Usado: {1} GB | Livre: {2} GB' -f $totalGB, $usadoGB, $livreGB) } catch { Write-Host 'Erro ao obter informacoes de memoria' }"
     echo.
-    echo --- DISCO ---
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-PhysicalDisk | Select FriendlyName,MediaType,Size,HealthStatus | Format-Table; Get-PSDrive -PSProvider FileSystem | Select Name, @{Name='TamanhoGB';Expression={[math]::Round($_.Used/1GB,2)}}, @{Name='LivreGB';Expression={[math]::Round($_.Free/1GB,2)}} | Format-Table"
+    echo === DISCO ===
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Get-PhysicalDisk | Select FriendlyName, MediaType, @{Name='Tamanho_GB';Expression={[math]::Round($_.Size/1GB,2)}}, HealthStatus | Format-Table -AutoSize; Get-PSDrive -PSProvider FileSystem | Select Name, @{Name='Usado_GB';Expression={[math]::Round($_.Used/1GB,2)}}, @{Name='Livre_GB';Expression={[math]::Round($_.Free/1GB,2)}} | Format-Table -AutoSize } catch { Write-Host 'Erro ao obter informacoes de disco' }"
     pause
 )
 if %opt_hw%==3 (
-    echo Programas instalados (32 e 64 bits):
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*, HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object { $_.DisplayName -ne $null } | Select DisplayName, DisplayVersion, Publisher, InstallDate | Sort DisplayName | Format-Table -AutoSize | Out-String -Width 300" | more
+    echo === PROGRAMAS INSTALADOS ===
+    echo Carregando lista de programas instalados...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*, HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object { $_.DisplayName -ne $null -and $_.DisplayName -ne '' } | Select DisplayName, DisplayVersion, Publisher | Sort DisplayName | Format-Table -AutoSize | Out-String -Width 120 } catch { Write-Host 'Erro ao obter lista de programas' }" | more
     pause
 )
 if %opt_hw%==4 (
-    echo --- TEMPERATURAS (se disponivel) ---
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-WmiObject MSAcpi_ThermalZoneTemperature -Namespace 'root/wmi' | Select InstanceName, CurrentTemperature | Format-Table; Get-WmiObject Win32_Fan | Select Name, Status | Format-Table"
+    echo === TEMPERATURAS E VENTOINHAS ===
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $temp = Get-WmiObject MSAcpi_ThermalZoneTemperature -Namespace 'root/wmi' -ErrorAction SilentlyContinue; if ($temp) { $temp | ForEach-Object { $celsius = [math]::Round(($_.CurrentTemperature / 10) - 273.15, 2); Write-Host ('Zona Termica: {0} - Temperatura: {1}°C' -f $_.InstanceName, $celsius) } } else { Write-Host 'Informacoes de temperatura nao disponiveis via WMI' }; $fans = Get-WmiObject Win32_Fan -ErrorAction SilentlyContinue; if ($fans) { $fans | Select Name, Status | Format-Table -AutoSize } else { Write-Host 'Informacoes de ventoinhas nao disponiveis' } } catch { Write-Host 'Erro ao obter informacoes termicas' }"
     pause
 )
 if %opt_hw%==5 (
     set "relatorio=%LOG_DIR%\relatorio_completo_%DATA_HORA%.txt"
+    echo Gerando relatorio completo...
     (
         echo ==== RELATORIO DE HARDWARE/SOFTWARE ====
-        echo --- SISTEMA ---
+        echo Data/Hora: %DATA_HORA%
+        echo.
+        echo === INFORMACOES DO SISTEMA ===
         systeminfo
         echo.
-        echo --- CPU ---
+        echo === CPU ===
         wmic cpu get Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed /format:list
         echo.
-        echo --- GPU ---
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_VideoController | Select Name, DriverVersion, @{Name='VRAM(MB)';Expression={$_.AdapterRAM/1MB}} | Format-List | Out-String"
+        echo === MEMORIA ===
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_PhysicalMemory | Select Manufacturer,PartNumber,Speed,@{Name='Capacidade_GB';Expression={[math]::Round($_.Capacity/1GB,2)}} | Format-List"
         echo.
-        echo --- MEMORIA ---
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_PhysicalMemory | Select Manufacturer,PartNumber,Speed,@{Name='GB';Expression={[math]::Round($_.Capacity/1GB,2)}} | Format-Table | Out-String"
-        echo.
-        echo --- DISCO ---
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-PhysicalDisk | Select FriendlyName,MediaType,Size,HealthStatus | Format-Table | Out-String; Get-PSDrive -PSProvider FileSystem | Select Name, Used, Free | Format-Table | Out-String"
-        echo.
-        echo --- SOFTWARE INSTALADO ---
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*, HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object { $_.DisplayName -ne $null } | Select DisplayName, DisplayVersion, Publisher, InstallDate | Sort DisplayName | Format-Table -AutoSize | Out-String"
-    ) > "%relatorio%"
-    type "%relatorio%" | more
+        echo === DISCO ===
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-PhysicalDisk | Format-List; Get-PSDrive -PSProvider FileSystem | Format-List"
+    ) > "!relatorio!" 2>&1
+    echo Relatorio salvo em: !relatorio!
+    echo Deseja visualizar o relatorio? (S/N)
+    choice /c SN /n /m "Resposta: "
+    if !errorlevel! equ 1 type "!relatorio!" | more
     pause
 )
-goto menu
+if %opt_hw%==6 goto menu
+goto hardware
 
 :rede
 cls
 echo ========== DIAGNOSTICO DE REDE ==========
 echo.
-echo [1] IP, Gateway, DNS
+echo [1] Configuracao de Rede
 echo [2] Testar Conexao com Google
-echo [3] Testar Porta (com PowerShell)
-echo [4] Liberar Cache DNS e Renovar IP
-echo [5] Testar Velocidade da Internet
-echo [6] Analisar Conexoes de Rede
+echo [3] Testar Porta Especifica
+echo [4] Renovar Configuracao de Rede
+echo [5] Teste Basico de Velocidade
+echo [6] Analisar Conexoes Ativas
 echo [7] Voltar
 echo.
 choice /c 1234567 /n /m "Escolha uma opcao: "
 set "opt_net=%errorlevel%"
 
 if %opt_net%==1 (
-    echo --- Configuracao de Rede ---
-    ipconfig /all | findstr /R "IPv4 Gateway DNS"
+    echo === CONFIGURACAO DE REDE ===
+    ipconfig /all | findstr /i "adaptador ethernet conexao dhcp gateway dns"
     echo.
-    echo --- Conexoes Ativas ---
-    netstat -ano | findstr ESTABLISHED
+    echo === ROTAS ===
+    route print | findstr /i "0.0.0.0"
     pause
 )
 if %opt_net%==2 (
-    echo Testando conexao com Google (ping)...
-    ping -n 4 www.google.com
+    echo === TESTE DE CONECTIVIDADE ===
+    echo Testando ping para Google...
+    ping -n 4 8.8.8.8
     echo.
-    echo Testando conexao com Google (HTTP)...
-    powershell -NoProfile -Command "try { $response = Invoke-WebRequest -Uri 'http://www.google.com' -UseBasicParsing -DisableKeepAlive; Write-Host 'Conexao HTTP bem-sucedida' -ForegroundColor Green } catch { Write-Host 'Falha na conexao HTTP' -ForegroundColor Red }"
+    echo Testando resolucao DNS...
+    nslookup google.com
+    echo.
+    echo Testando conectividade HTTP...
+    powershell -NoProfile -Command "try { $response = Invoke-WebRequest -Uri 'https://www.google.com' -UseBasicParsing -TimeoutSec 10; Write-Host 'Conexao HTTPS bem-sucedida - Status:' $response.StatusCode -ForegroundColor Green } catch { Write-Host 'Falha na conexao HTTPS:' $_.Exception.Message -ForegroundColor Red }"
     pause
 )
 if %opt_net%==3 (
-    set /p host="Digite o host (ex: google.com): "
-    set /p porta="Digite a porta (ex: 80): "
-    powershell -NoProfile -Command "try { (New-Object System.Net.Sockets.TcpClient('%host%',%porta%)).Close(); Write-Host 'Conexao bem-sucedida na porta %porta%' -ForegroundColor Green } catch { Write-Host 'Falha na conexao na porta %porta%' -ForegroundColor Red }"
+    set /p "host=Digite o host (ex: google.com): "
+    set /p "porta=Digite a porta (ex: 80): "
+    if "!host!"=="" set "host=google.com"
+    if "!porta!"=="" set "porta=80"
+    echo Testando conexao para !host!:!porta!...
+    powershell -NoProfile -Command "$host='!host!'; $porta=!porta!; try { $tcp = New-Object System.Net.Sockets.TcpClient; $tcp.ConnectAsync($host, $porta).Wait(5000); if ($tcp.Connected) { Write-Host 'Conexao bem-sucedida para' $host':' $porta -ForegroundColor Green; $tcp.Close() } else { Write-Host 'Timeout na conexao para' $host':' $porta -ForegroundColor Yellow } } catch { Write-Host 'Falha na conexao para' $host':' $porta '-' $_.Exception.Message -ForegroundColor Red }"
     pause
 )
 if %opt_net%==4 (
+    echo === RENOVANDO CONFIGURACAO DE REDE ===
     echo Liberando cache DNS...
     ipconfig /flushdns
     echo.
-    echo Renovando configuracao IP...
+    echo Liberando IP atual...
     ipconfig /release
+    echo.
+    echo Renovando IP...
     ipconfig /renew
     echo.
-    echo Verificando rotas...
-    route print
+    echo Reiniciando adaptador de rede...
+    powershell -NoProfile -Command "try { Get-NetAdapter | Where-Object Status -eq 'Up' | Restart-NetAdapter -Confirm:$false; Write-Host 'Adaptadores reiniciados com sucesso' -ForegroundColor Green } catch { Write-Host 'Erro ao reiniciar adaptadores:' $_.Exception.Message -ForegroundColor Red }"
     pause
 )
 if %opt_net%==5 (
-    echo Testando velocidade da Internet (aguarde alguns segundos)...
+    echo === TESTE BASICO DE VELOCIDADE ===
+    echo Realizando teste de download simples...
     set "log=%LOG_DIR%\speedtest_%DATA_HORA%.log"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $result = Invoke-WebRequest -Uri 'https://speedtest.net' -UseBasicParsing; $downloadUrl = 'https://speedtest.net/speedtest.ashx'; $uploadUrl = 'https://speedtest.net/speedtest-upload.php'; $start = Get-Date; $download = (Invoke-WebRequest -Uri $downloadUrl -UseBasicParsing).Content; $downloadTime = (Get-Date) - $start; $downloadSize = $download.Length; $downloadSpeed = [math]::Round(($downloadSize * 8 / $downloadTime.TotalSeconds) / 1e6, 2); $start = Get-Date; $upload = Invoke-WebRequest -Uri $uploadUrl -Method Post -Body ([byte[]]::new(1e6)) -UseBasicParsing; $uploadTime = (Get-Date) - $start; $uploadSize = 1e6; $uploadSpeed = [math]::Round(($uploadSize * 8 / $uploadTime.TotalSeconds) / 1e6, 2); Write-Host ('Velocidade Download: {0} Mbps' -f $downloadSpeed); Write-Host ('Velocidade Upload: {0} Mbps' -f $uploadSpeed); Add-Content -Path '%log%' -Value ('Data: {0}' -f (Get-Date)); Add-Content -Path '%log%' -Value ('Download: {0} Mbps' -f $downloadSpeed); Add-Content -Path '%log%' -Value ('Upload: {0} Mbps' -f $uploadSpeed)"
-    type "%log%"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; try { $start = Get-Date; $response = Invoke-WebRequest -Uri 'https://www.google.com' -UseBasicParsing -TimeoutSec 30; $end = Get-Date; $tempo = ($end - $start).TotalMilliseconds; $tamanho = $response.Content.Length; Write-Host ('Tempo de resposta: {0:F2} ms' -f $tempo); Write-Host ('Tamanho da resposta: {0} bytes' -f $tamanho); $resultado = 'Data: ' + (Get-Date) + [Environment]::NewLine + 'Tempo: ' + [string]$tempo + ' ms' + [Environment]::NewLine + 'Tamanho: ' + [string]$tamanho + ' bytes'; $resultado | Out-File '!log!' -Encoding UTF8 } catch { Write-Host 'Erro no teste:' $_.Exception.Message -ForegroundColor Red; 'Erro: ' + $_.Exception.Message | Out-File '!log!' -Encoding UTF8 }"
+    if exist "!log!" (
+        echo.
+        echo === RESULTADO SALVO ===
+        type "!log!"
+    )
     pause
 )
 if %opt_net%==6 (
-    echo --- Conexoes Ativas ---
-    netstat -ano | findstr ESTABLISHED
+    echo === CONEXOES ATIVAS ===
+    netstat -ano | findstr ESTABLISHED | more
     echo.
-    echo --- Processos com Conexoes ---
-    powershell -NoProfile -Command "Get-NetTCPConnection -State Established | Select LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess | Sort-Object OwningProcess | Format-Table -AutoSize"
+    echo === PROCESSOS COM CONEXOES ===
+    powershell -NoProfile -Command "try { Get-NetTCPConnection -State Established | Select LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess | Sort-Object OwningProcess | Format-Table -AutoSize } catch { Write-Host 'Erro ao obter conexoes TCP' }"
     pause
 )
-goto menu
+if %opt_net%==7 goto menu
+goto rede
 
 :limpeza
 cls
 echo ========== FERRAMENTAS DE LIMPEZA ==========
 echo.
 echo [1] Limpeza de Arquivos Temporarios
-echo [2] Limpeza com Storage Sense
-echo [3] Limpar Prefetch, Logs, Recentes
+echo [2] Executar Limpeza de Disco
+echo [3] Limpar Cache do Sistema
 echo [4] Limpar Thumbnails e IconCache
-echo [5] Otimizar Unidades (Defrag)
+echo [5] Otimizar Unidades
 echo [6] Voltar
 echo.
 choice /c 123456 /n /m "Escolha uma opcao: "
 set "opt_clean=%errorlevel%"
 
 if %opt_clean%==1 (
-    echo Limpando arquivos temporarios...
-    del /q /f /s "%TEMP%\*" >nul 2>&1
-    del /q /f /s "%SystemRoot%\Temp\*" >nul 2>&1
-    del /q /f /s "%LOCALAPPDATA%\Temp\*" >nul 2>&1
-    echo Arquivos temporários removidos.
+    echo === LIMPEZA DE ARQUIVOS TEMPORARIOS ===
+    echo Limpando arquivos temporarios do usuario...
+    if exist "%TEMP%" (
+        del /q /f /s "%TEMP%\*" >nul 2>&1
+        for /d %%i in ("%TEMP%\*") do rd /s /q "%%i" >nul 2>&1
+    )
+    echo.
+    echo Limpando arquivos temporarios do sistema...
+    if exist "%SystemRoot%\Temp" (
+        del /q /f /s "%SystemRoot%\Temp\*" >nul 2>&1
+        for /d %%i in ("%SystemRoot%\Temp\*") do rd /s /q "%%i" >nul 2>&1
+    )
+    echo.
+    echo Limpando arquivos temporarios locais...
+    if exist "%LOCALAPPDATA%\Temp" (
+        del /q /f /s "%LOCALAPPDATA%\Temp\*" >nul 2>&1
+        for /d %%i in ("%LOCALAPPDATA%\Temp\*") do rd /s /q "%%i" >nul 2>&1
+    )
+    echo Limpeza de arquivos temporarios concluida.
     pause
 )
 if %opt_clean%==2 (
-    echo Configurando Storage Sense...
-    powershell -Command "Start-Process 'ms-settings:storagesense' -Wait"
+    echo === EXECUTANDO LIMPEZA DE DISCO ===
+    echo Abrindo ferramenta de Limpeza de Disco...
+    cleanmgr /sagerun:1
+    pause
 )
 if %opt_clean%==3 (
-    echo Limpando arquivos de sistema...
-    del /f /s /q "%SystemRoot%\Prefetch\*" >nul 2>&1
-    del /f /s /q "%APPDATA%\Microsoft\Windows\Recent\*" >nul 2>&1
-    del /f /s /q "%SystemRoot%\Logs\*" >nul 2>&1
-    echo Limpeza concluida.
+    echo === LIMPEZA DE CACHE DO SISTEMA ===
+    echo Limpando Prefetch...
+    if exist "%SystemRoot%\Prefetch" (
+        del /f /s /q "%SystemRoot%\Prefetch\*" >nul 2>&1
+    )
+    echo.
+    echo Limpando arquivos recentes...
+    if exist "%APPDATA%\Microsoft\Windows\Recent" (
+        del /f /s /q "%APPDATA%\Microsoft\Windows\Recent\*" >nul 2>&1
+    )
+    echo.
+    echo Limpando logs do sistema...
+    if exist "%SystemRoot%\Logs" (
+        del /f /s /q "%SystemRoot%\Logs\*" >nul 2>&1
+    )
+    echo Limpeza de cache concluida.
     pause
 )
 if %opt_clean%==4 (
-    echo Limpando cache de thumbnails e icones...
-    del /f /s /q "%LOCALAPPDATA%\Microsoft\Windows\Explorer\thumbcache_*" >nul 2>&1
-    del /f /s /q "%LOCALAPPDATA%\IconCache.db" >nul 2>&1
-    echo Cache limpo.
+    echo === LIMPEZA DE CACHE VISUAL ===
+    echo Limpando cache de thumbnails...
+    if exist "%LOCALAPPDATA%\Microsoft\Windows\Explorer" (
+        del /f /s /q "%LOCALAPPDATA%\Microsoft\Windows\Explorer\thumbcache_*" >nul 2>&1
+    )
+    echo.
+    echo Limpando cache de icones...
+    if exist "%LOCALAPPDATA%\IconCache.db" (
+        del /f /q "%LOCALAPPDATA%\IconCache.db" >nul 2>&1
+    )
+    echo.
+    echo Reiniciando Windows Explorer para aplicar mudancas...
+    taskkill /f /im explorer.exe >nul 2>&1
+    timeout /t 2 >nul
+    start explorer.exe
+    echo Cache visual limpo.
     pause
 )
 if %opt_clean%==5 (
-    echo Otimizando unidades de disco...
-    powershell -NoProfile -Command "Optimize-Volume -DriveLetter C -Defrag -Verbose"
+    echo === OTIMIZACAO DE UNIDADES ===
+    echo Verificando unidades disponiveis...
+    powershell -NoProfile -Command "try { $drives = Get-Volume | Where-Object { $_.DriveLetter -ne $null -and $_.FileSystem -eq 'NTFS' }; foreach ($drive in $drives) { Write-Host ('Otimizando unidade {0}:' -f $drive.DriveLetter); Optimize-Volume -DriveLetter $drive.DriveLetter -Defrag -Verbose } } catch { Write-Host 'Erro na otimizacao:' $_.Exception.Message -ForegroundColor Red }"
     echo Otimizacao concluida.
     pause
 )
-goto menu
+if %opt_clean%==6 goto menu
+goto limpeza
 
 :extras
 cls
 echo ========== FERRAMENTAS ADICIONAIS ==========
 echo.
 echo [1] Gerenciador de Tarefas
-echo [2] Ver Processos com PowerShell
-echo [3] Abrir Editor de Registro
+echo [2] Ver Processos Detalhados
+echo [3] Editor de Registro
 echo [4] Gerenciador de Dispositivos
 echo [5] Gerenciador de Servicos
-echo [6] Verificar Eventos do Sistema
-echo [7] Voltar
+echo [6] Visualizador de Eventos
+echo [7] Informacoes do Sistema (msinfo32)
+echo [8] Voltar
 echo.
-choice /c 1234567 /n /m "Escolha uma opcao: "
+choice /c 12345678 /n /m "Escolha uma opcao: "
 set "opt_ex=%errorlevel%"
 
-if %opt_ex%==1 start taskmgr
-if %opt_ex%==2 (
-    powershell -NoProfile -Command "Get-Process | Sort-Object CPU -Descending | Select -First 30 -Property Id,Name,CPU,WorkingSet,Description | Format-Table -AutoSize" & pause
+if %opt_ex%==1 (
+    echo Abrindo Gerenciador de Tarefas...
+    start taskmgr
 )
-if %opt_ex%==3 start regedit
-if %opt_ex%==4 start devmgmt.msc
-if %opt_ex%==5 start services.msc
-if %opt_ex%==6 (
-    echo Abrindo Visualizador de Eventos...
-    eventvwr.msc
+if %opt_ex%==2 (
+    echo === PROCESSOS DO SISTEMA ===
+    echo Top 20 processos por uso de CPU:
+    powershell -NoProfile -Command "try { Get-Process | Sort-Object CPU -Descending | Select -First 20 -Property Id, Name, @{Name='CPU_Tempo';Expression={$_.CPU}}, @{Name='Memoria_MB';Expression={[math]::Round($_.WorkingSet/1MB,2)}}, Description | Format-Table -AutoSize } catch { Write-Host 'Erro ao obter processos' }"
     pause
 )
-goto menu
+if %opt_ex%==3 (
+    echo Abrindo Editor de Registro...
+    echo AVISO: Tenha cuidado ao editar o registro!
+    timeout /t 3 >nul
+    start regedit
+)
+if %opt_ex%==4 (
+    echo Abrindo Gerenciador de Dispositivos...
+    start devmgmt.msc
+)
+if %opt_ex%==5 (
+    echo Abrindo Gerenciador de Servicos...
+    start services.msc
+)
+if %opt_ex%==6 (
+    echo Abrindo Visualizador de Eventos...
+    start eventvwr.msc
+)
+if %opt_ex%==7 (
+    echo Abrindo Informacoes do Sistema...
+    start msinfo32
+)
+if %opt_ex%==8 goto menu
+goto extras

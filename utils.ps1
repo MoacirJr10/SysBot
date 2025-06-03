@@ -1,9 +1,3 @@
-<#
-    utils.ps1 - Módulo de funções para SYSBOT v3.2
-    Atualizado para sincronizar com o script batch principal
-    Adicionadas novas funcionalidades e melhorias de segurança
-#>
-
 function Write-Header {
     [CmdletBinding()]
     param(
@@ -29,18 +23,31 @@ function Pausar {
     )
 
     Write-Host "`n>> $Message" -ForegroundColor Yellow
-    [void][System.Console]::ReadKey($true)
+    try {
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    }
+    catch {
+        Read-Host "Pressione Enter para continuar"
+    }
 }
 
-function Testar-Admin {
+function Test-Administrator {
     [CmdletBinding()]
     [OutputType([bool])]
     param()
 
-    return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    try {
+        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    catch {
+        Write-Warning "Não foi possível verificar privilégios de administrador: $($_.Exception.Message)"
+        return $false
+    }
 }
 
-function Verificar-MemoriaRAM {
+function Get-MemoryInfo {
     [CmdletBinding()]
     param(
         [switch]$Detailed
@@ -48,63 +55,101 @@ function Verificar-MemoriaRAM {
 
     Write-Host "`n[🧠] Verificando uso de memória RAM..." -ForegroundColor Magenta
     try {
-        $dados = Get-CimInstance Win32_OperatingSystem
-        $total = [math]::Round($dados.TotalVisibleMemorySize / 1MB, 2)
-        $livre = [math]::Round($dados.FreePhysicalMemory / 1MB, 2)
-        $uso = [math]::Round($total - $livre, 2)
-        $percentual = if ($total -ne 0) { [math]::Round(($uso / $total) * 100, 2) } else { 0 }
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+        $totalGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
+        $freeGB = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
+        $usedGB = [math]::Round($totalGB - $freeGB, 2)
+        $percentUsed = if ($totalGB -gt 0) { [math]::Round(($usedGB / $totalGB) * 100, 2) } else { 0 }
 
         if ($Detailed) {
-            $ramModules = Get-CimInstance Win32_PhysicalMemory | Select-Object Manufacturer, PartNumber,
-            @{Name='CapacityGB';Expression={[math]::Round($_.Capacity/1GB,2)}}, Speed, BankLabel
+            try {
+                $ramModules = Get-CimInstance -ClassName Win32_PhysicalMemory -ErrorAction Stop |
+                        Select-Object Manufacturer, PartNumber,
+                        @{Name='CapacityGB';Expression={[math]::Round($_.Capacity/1GB,2)}},
+                        Speed, BankLabel
 
-            Write-Host "`n🧠 Total: $total GB | Em Uso: $uso GB ($percentual`%)" -ForegroundColor White
-            $ramModules | Format-Table -AutoSize
+                Write-Host "`n🧠 Total: $totalGB GB | Em Uso: $usedGB GB ($percentUsed%)" -ForegroundColor White
+                if ($ramModules) {
+                    $ramModules | Format-Table -AutoSize
+                }
+            }
+            catch {
+                Write-Host "`n🧠 Total: $totalGB GB | Em Uso: $usedGB GB ($percentUsed%)" -ForegroundColor White
+                Write-Warning "Não foi possível obter detalhes dos módulos de RAM"
+            }
         } else {
-            Write-Host "`n🧠 Total: $total GB | Em Uso: $uso GB ($percentual`%)" -ForegroundColor White
+            Write-Host "`n🧠 Total: $totalGB GB | Em Uso: $usedGB GB ($percentUsed%)" -ForegroundColor White
         }
+        return $true
     } catch {
-        Write-Host "Erro: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Erro ao verificar memória: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
-    return $true
 }
 
-function Verificar-Atualizacoes {
+function Test-WindowsUpdates {
     [CmdletBinding()]
     param(
         [switch]$InstallUpdates
     )
 
     Write-Host "`n[🔄] Verificando atualizações do Windows..." -ForegroundColor Magenta
+
+    if (-not (Test-Administrator)) {
+        Write-Host "AVISO: Privilégios de administrador necessários para verificar atualizações." -ForegroundColor Yellow
+        return $false
+    }
+
     try {
+        # Verificar se o módulo PSWindowsUpdate está disponível
         if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-            Write-Host " Instalando módulo PSWindowsUpdate..." -ForegroundColor Yellow
-            Install-Module -Name PSWindowsUpdate -Force -Confirm:$false -AllowClobber -Scope CurrentUser
+            Write-Host "Instalando módulo PSWindowsUpdate..." -ForegroundColor Yellow
+            try {
+                Install-Module -Name PSWindowsUpdate -Force -Confirm:$false -AllowClobber -Scope CurrentUser -ErrorAction Stop
+            }
+            catch {
+                Write-Host "Erro ao instalar PSWindowsUpdate: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "Tentando método alternativo..." -ForegroundColor Yellow
+
+                # Método alternativo usando Windows Update Agent API
+                $updateSession = New-Object -ComObject Microsoft.Update.Session
+                $updateSearcher = $updateSession.CreateUpdateSearcher()
+                $searchResult = $updateSearcher.Search("IsInstalled=0")
+
+                if ($searchResult.Updates.Count -gt 0) {
+                    Write-Host "`nEncontradas $($searchResult.Updates.Count) atualizações disponíveis" -ForegroundColor Yellow
+                    foreach ($update in $searchResult.Updates) {
+                        Write-Host "- $($update.Title)" -ForegroundColor White
+                    }
+                } else {
+                    Write-Host "`nNenhuma atualização disponível." -ForegroundColor Green
+                }
+                return $true
+            }
         }
 
         Import-Module PSWindowsUpdate -Force -ErrorAction Stop
-        $updates = Get-WindowsUpdate
+        $updates = Get-WindowsUpdate -ErrorAction Stop
 
         if ($updates.Count -gt 0) {
-            Write-Host " `nAtualizações disponíveis:" -ForegroundColor Yellow
+            Write-Host "`nAtualizações disponíveis:" -ForegroundColor Yellow
             $updates | Select-Object Title, KB, Size | Format-Table -AutoSize
 
             if ($InstallUpdates) {
-                Write-Host " `nInstalando atualizações..." -ForegroundColor Yellow
-                Get-WindowsUpdate -AcceptAll -Install -AutoReboot | Out-Host
+                Write-Host "`nInstalando atualizações..." -ForegroundColor Yellow
+                Install-WindowsUpdate -AcceptAll -Install -AutoReboot | Out-Host
             }
         } else {
-            Write-Host " `nNenhuma atualização disponível." -ForegroundColor Green
+            Write-Host "`nNenhuma atualização disponível." -ForegroundColor Green
         }
+        return $true
     } catch {
         Write-Host "Erro ao verificar atualizações: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
-    return $true
 }
 
-function Limpeza-Avancada {
+function Invoke-SystemCleanup {
     [CmdletBinding()]
     param(
         [switch]$IncludeTempFiles,
@@ -113,184 +158,260 @@ function Limpeza-Avancada {
         [switch]$IncludeLogs
     )
 
-    Write-Host "`n[🧹] Executando limpeza avançada..." -ForegroundColor Magenta
+    Write-Host "`n[🧹] Executando limpeza do sistema..." -ForegroundColor Magenta
 
     try {
-        # Limpeza básica do Windows
-        Start-Process "cleanmgr.exe" -ArgumentList "/sagerun:1" -Wait -NoNewWindow
+        # Limpeza usando Disk Cleanup
+        Write-Host "Executando limpeza de disco..." -ForegroundColor Cyan
+        if (Test-Path "$env:SystemRoot\System32\cleanmgr.exe") {
+            Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:1" -Wait -NoNewWindow -ErrorAction SilentlyContinue
+        }
 
         # Limpeza adicional baseada nos parâmetros
         if ($IncludeTempFiles) {
-            Write-Host " Limpando arquivos temporários..." -ForegroundColor Cyan
-            Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path "$env:SystemRoot\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Limpando arquivos temporários..." -ForegroundColor Cyan
+            $tempPaths = @(
+                "$env:TEMP\*",
+                "$env:SystemRoot\Temp\*",
+                "$env:LOCALAPPDATA\Temp\*"
+            )
+
+            foreach ($path in $tempPaths) {
+                try {
+                    if (Test-Path (Split-Path $path -Parent)) {
+                        Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
+                catch {
+                    Write-Verbose "Não foi possível limpar: $path"
+                }
+            }
         }
 
         if ($IncludeThumbnails) {
-            Write-Host " Limpando cache de thumbnails..." -ForegroundColor Cyan
-            Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*" -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path "$env:LOCALAPPDATA\IconCache.db" -Force -ErrorAction SilentlyContinue
+            Write-Host "Limpando cache de thumbnails..." -ForegroundColor Cyan
+            $thumbPaths = @(
+                "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*",
+                "$env:LOCALAPPDATA\IconCache.db"
+            )
+
+            foreach ($path in $thumbPaths) {
+                try {
+                    Remove-Item -Path $path -Force -ErrorAction SilentlyContinue
+                }
+                catch {
+                    Write-Verbose "Não foi possível remover: $path"
+                }
+            }
         }
 
-        if ($IncludePrefetch) {
-            Write-Host " Limpando arquivos Prefetch..." -ForegroundColor Cyan
-            Remove-Item -Path "$env:SystemRoot\Prefetch\*" -Force -ErrorAction SilentlyContinue
+        if ($IncludePrefetch -and (Test-Administrator)) {
+            Write-Host "Limpando arquivos Prefetch..." -ForegroundColor Cyan
+            try {
+                Remove-Item -Path "$env:SystemRoot\Prefetch\*" -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-Verbose "Não foi possível limpar Prefetch"
+            }
         }
 
-        if ($IncludeLogs) {
-            Write-Host " Limpando logs antigos..." -ForegroundColor Cyan
-            Remove-Item -Path "$env:SystemRoot\Logs\*" -Recurse -Force -ErrorAction SilentlyContinue
+        if ($IncludeLogs -and (Test-Administrator)) {
+            Write-Host "Limpando logs antigos..." -ForegroundColor Cyan
+            $logPaths = @(
+                "$env:SystemRoot\Logs\*",
+                "$env:SystemRoot\System32\LogFiles\*"
+            )
+
+            foreach ($path in $logPaths) {
+                try {
+                    if (Test-Path (Split-Path $path -Parent)) {
+                        Get-ChildItem -Path $path -Recurse -ErrorAction SilentlyContinue |
+                                Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } |
+                                Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+                    }
+                }
+                catch {
+                    Write-Verbose "Não foi possível limpar logs em: $path"
+                }
+            }
         }
 
-        Write-Host " `n✅ Limpeza concluída com sucesso!" -ForegroundColor Green
+        Write-Host "`n✅ Limpeza concluída!" -ForegroundColor Green
+        return $true
     } catch {
         Write-Host "Erro durante a limpeza: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
-    return $true
 }
 
-function Otimizacao-Sistema {
+function Optimize-SystemDrives {
     [CmdletBinding()]
     param(
-        [switch]$OptimizeDrives,
-        [switch]$Defrag,
+        [switch]$OptimizeAll,
+        [switch]$DefragHDD,
         [switch]$TrimSSD
     )
 
-    Write-Host "`n[⚙️] Otimizando sistema..." -ForegroundColor Magenta
+    Write-Host "`n[⚙️] Otimizando unidades de disco..." -ForegroundColor Magenta
+
+    if (-not (Test-Administrator)) {
+        Write-Host "AVISO: Privilégios de administrador necessários para otimização." -ForegroundColor Yellow
+        return $false
+    }
 
     try {
-        if ($OptimizeDrives) {
-            Write-Host " Otimizando unidades de disco..." -ForegroundColor Cyan
-            Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } | ForEach-Object {
-                Write-Host "  Processando unidade $($_.DriveLetter):" -ForegroundColor White
-                Optimize-Volume -DriveLetter $_.DriveLetter -Verbose
+        $volumes = Get-Volume | Where-Object {
+            $_.DriveType -eq 'Fixed' -and
+                    $_.DriveLetter -and
+                    $_.FileSystem -in @('NTFS', 'ReFS')
+        }
+
+        if (-not $volumes) {
+            Write-Host "Nenhuma unidade elegível encontrada." -ForegroundColor Yellow
+            return $false
+        }
+
+        foreach ($volume in $volumes) {
+            Write-Host "Processando unidade $($volume.DriveLetter):" -ForegroundColor White
+
+            try {
+                if ($OptimizeAll) {
+                    Write-Host "  Otimizando..." -ForegroundColor Cyan
+                    Optimize-Volume -DriveLetter $volume.DriveLetter -Verbose -ErrorAction Stop
+                }
+
+                # Verificar tipo de mídia para operações específicas
+                $physicalDisk = Get-PhysicalDisk | Where-Object {
+                    $_.DeviceID -in (Get-Partition | Where-Object { $_.DriveLetter -eq $volume.DriveLetter } | ForEach-Object { $_.DiskNumber })
+                }
+
+                if ($physicalDisk) {
+                    if ($DefragHDD -and $physicalDisk.MediaType -eq 'HDD') {
+                        Write-Host "  Desfragmentando HDD..." -ForegroundColor Cyan
+                        Optimize-Volume -DriveLetter $volume.DriveLetter -Defrag -Verbose -ErrorAction Stop
+                    }
+
+                    if ($TrimSSD -and $physicalDisk.MediaType -eq 'SSD') {
+                        Write-Host "  Executando TRIM em SSD..." -ForegroundColor Cyan
+                        Optimize-Volume -DriveLetter $volume.DriveLetter -ReTrim -Verbose -ErrorAction Stop
+                    }
+                }
+            }
+            catch {
+                Write-Host "  Erro ao otimizar $($volume.DriveLetter): $($_.Exception.Message)" -ForegroundColor Red
             }
         }
 
-        if ($Defrag) {
-            Write-Host " Desfragmentando HDDs..." -ForegroundColor Cyan
-            Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter -and $_.MediaType -eq 'HDD' } | ForEach-Object {
-                Write-Host "  Desfragmentando $($_.DriveLetter):" -ForegroundColor White
-                Optimize-Volume -DriveLetter $_.DriveLetter -Defrag -Verbose
-            }
-        }
-
-        if ($TrimSSD) {
-            Write-Host " Executando TRIM em SSDs..." -ForegroundColor Cyan
-            Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter -and $_.MediaType -eq 'SSD' } | ForEach-Object {
-                Write-Host "  TRIM em $($_.DriveLetter):" -ForegroundColor White
-                Optimize-Volume -DriveLetter $_.DriveLetter -ReTrim -Verbose
-            }
-        }
-
-        Write-Host " `n✅ Otimização concluída com sucesso!" -ForegroundColor Green
+        Write-Host "`n✅ Otimização concluída!" -ForegroundColor Green
+        return $true
     } catch {
         Write-Host "Erro durante a otimização: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
-    return $true
 }
 
-function Verificar-Drivers {
+function Get-DriverInfo {
     [CmdletBinding()]
     param(
-        [switch]$CheckUpdates,
         [switch]$ExportList
     )
 
-    Write-Host "`n[🔍] Verificando drivers..." -ForegroundColor Magenta
+    Write-Host "`n[🔍] Verificando drivers do sistema..." -ForegroundColor Magenta
 
     try {
-        $drivers = Get-WmiObject Win32_PnPSignedDriver |
+        $drivers = Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop |
                 Where-Object { $_.DeviceName -and $_.DriverVersion } |
-                Sort-Object DriverDate -Descending |
+                Sort-Object @{Expression={$_.DriverDate}; Descending=$true} |
                 Select-Object DeviceName, Manufacturer, DriverVersion,
-                @{Name='DriverDate';Expression={$_.DriverDate.ToShortDateString()}}
+                @{Name='DriverDate';Expression={
+                    if ($_.DriverDate) {
+                        [Management.ManagementDateTimeConverter]::ToDateTime($_.DriverDate).ToString("yyyy-MM-dd")
+                    } else {
+                        "N/A"
+                    }
+                }}
 
-        Write-Host " `nDrivers instalados (últimos 10):" -ForegroundColor Yellow
-        $drivers | Select-Object -First 10 | Format-Table -AutoSize
-
-        if ($CheckUpdates) {
-            Write-Host " `nVerificando drivers desatualizados..." -ForegroundColor Yellow
-            # Implementação futura para verificar atualizações de drivers
-        }
+        Write-Host "`nDrivers instalados (últimos 15):" -ForegroundColor Yellow
+        $drivers | Select-Object -First 15 | Format-Table -AutoSize
 
         if ($ExportList) {
-            $date = Get-Date -Format "yyyy-MM-dd"
-            $filePath = "$env:USERPROFILE\Desktop\Drivers_List_$date.csv"
-            $drivers | Export-Csv -Path $filePath -NoTypeInformation -Encoding UTF8
-            Write-Host " `nLista de drivers exportada para: $filePath" -ForegroundColor Green
+            $date = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
+            $filePath = Join-Path $env:USERPROFILE "Desktop\Drivers_List_$date.csv"
+            try {
+                $drivers | Export-Csv -Path $filePath -NoTypeInformation -Encoding UTF8
+                Write-Host "`nLista de drivers exportada para: $filePath" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "Erro ao exportar lista: $($_.Exception.Message)" -ForegroundColor Red
+            }
         }
+        return $true
     } catch {
         Write-Host "Erro ao verificar drivers: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
-    return $true
 }
 
-function Testar-VelocidadeInternet {
+function Test-InternetSpeed {
     [CmdletBinding()]
     param(
-        [int]$TestDuration = 10
+        [int]$TimeoutSeconds = 30
     )
 
-    Write-Host "`n[🌐] Testando velocidade da Internet..." -ForegroundColor Magenta
+    Write-Host "`n[🌐] Testando conectividade e velocidade..." -ForegroundColor Magenta
 
     try {
-        Write-Host " Baixando ferramenta SpeedTest CLI..." -ForegroundColor Cyan
-        $progressPreference = 'silentlyContinue'
-        Invoke-WebRequest -Uri "https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-win64.zip" -OutFile "$env:TEMP\speedtest.zip"
+        # Teste básico de conectividade
+        Write-Host "Testando conectividade..." -ForegroundColor Cyan
+        $pingTest = Test-NetConnection -ComputerName "8.8.8.8" -Port 53 -InformationLevel Quiet
 
-        if (-not (Test-Path "$env:TEMP\speedtest.zip")) {
-            throw "Falha ao baixar o SpeedTest CLI"
+        if (-not $pingTest) {
+            Write-Host "Sem conectividade com a internet." -ForegroundColor Red
+            return $false
         }
 
-        Expand-Archive -Path "$env:TEMP\speedtest.zip" -DestinationPath "$env:TEMP\speedtest" -Force
-        $speedtest = "$env:TEMP\speedtest\speedtest.exe"
+        # Teste simples de velocidade de download
+        Write-Host "Executando teste de velocidade (método simplificado)..." -ForegroundColor Cyan
 
-        if (-not (Test-Path $speedtest)) {
-            throw "Arquivo speedtest.exe não encontrado"
+        $testUrl = "http://speedtest.ftp.otenet.gr/files/test1Mb.db"
+        $testFile = "$env:TEMP\speedtest.tmp"
+
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+        try {
+            Invoke-WebRequest -Uri $testUrl -OutFile $testFile -TimeoutSec $TimeoutSeconds -ErrorAction Stop
+            $stopwatch.Stop()
+
+            $fileSize = (Get-Item $testFile).Length
+            $speedBps = $fileSize / $stopwatch.Elapsed.TotalSeconds
+            $speedMbps = [math]::Round(($speedBps * 8) / 1MB, 2)
+
+            Write-Host "`n📊 Resultado do teste:" -ForegroundColor Yellow
+            Write-Host "  Velocidade aproximada: $speedMbps Mbps" -ForegroundColor White
+            Write-Host "  Tempo de download: $([math]::Round($stopwatch.Elapsed.TotalSeconds, 2)) segundos" -ForegroundColor White
+
+            Remove-Item -Path $testFile -Force -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Host "Erro no teste de velocidade: $($_.Exception.Message)" -ForegroundColor Red
+
+            # Teste alternativo usando ping
+            Write-Host "`nExecutando teste de latência..." -ForegroundColor Yellow
+            $pingResult = Test-NetConnection -ComputerName "8.8.8.8" -TraceRoute
+            Write-Host "  Latência: $($pingResult.PingReplyDetails.RoundtripTime) ms" -ForegroundColor White
         }
 
-        Write-Host " Executando teste de velocidade (pode levar alguns minutos)..." -ForegroundColor Cyan
-        $result = & $speedtest --format=json --accept-license --accept-gdpr
-        $jsonResult = $result | ConvertFrom-Json
-
-        Write-Host " `n📊 Resultados do SpeedTest:" -ForegroundColor Yellow
-        Write-Host "  Download: $([math]::Round($jsonResult.download.bandwidth/125000, 2)) Mbps" -ForegroundColor White
-        Write-Host "  Upload: $([math]::Round($jsonResult.upload.bandwidth/125000, 2)) Mbps" -ForegroundColor White
-        Write-Host "  Ping: $($jsonResult.ping.latency) ms" -ForegroundColor White
-        Write-Host "  Provedor: $($jsonResult.isp)" -ForegroundColor White
-
-        # Limpeza
-        Remove-Item -Path "$env:TEMP\speedtest.zip" -Force
-        Remove-Item -Path "$env:TEMP\speedtest" -Recurse -Force
+        return $true
     } catch {
-        Write-Host "Erro ao testar velocidade: $($_.Exception.Message)" -ForegroundColor Red
-
-        # Método alternativo simples
-        Write-Host " `nExecutando teste alternativo..." -ForegroundColor Yellow
-        $url = "https://speedtest.net/speedtest.ashx"
-        $size = 10MB  # Tamanho do arquivo de teste
-
-        # Teste de download
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $data = Invoke-WebRequest -Uri $url -Method Head
-        $sw.Stop()
-
-        $speed = ($size * 8) / $sw.Elapsed.TotalSeconds / 1e6  # Convertendo para Mbps
-        Write-Host "  Velocidade aproximada: $([math]::Round($speed, 2)) Mbps" -ForegroundColor White
+        Write-Host "Erro ao testar internet: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
-    return $true
 }
 
-function Criar-Relatorio {
+function New-SystemReport {
     [CmdletBinding()]
     param(
-        [string]$OutputPath = "$env:USERPROFILE\Desktop"
+        [string]$OutputPath = $env:USERPROFILE
     )
 
     Write-Host "`n[📄] Gerando relatório do sistema..." -ForegroundColor Magenta
@@ -299,132 +420,170 @@ function Criar-Relatorio {
         $date = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
         $reportPath = Join-Path -Path $OutputPath -ChildPath "SysBot_Relatorio_$date.html"
 
-        # CSS para o relatório HTML
-        $htmlHeader = @"
+        # Coletar informações do sistema
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem
+        $computer = Get-CimInstance -ClassName Win32_ComputerSystem
+        $processor = Get-CimInstance -ClassName Win32_Processor | Select-Object -First 1
+
+        # CSS e estrutura HTML
+        $htmlContent = @"
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatório SYSBOT - $date</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #2c3e50; }
-        h2 { color: #3498db; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-        th { background-color: #3498db; color: white; text-align: left; padding: 8px; }
-        td { border: 1px solid #ddd; padding: 8px; }
-        tr:nth-child(even) { background-color: #f2f2f2; }
-        .warning { color: #f39c12; }
-        .error { color: #e74c3c; }
-        .success { color: #2ecc71; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #3498db;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            text-align: left;
+            padding: 12px;
+            font-weight: bold;
+        }
+        td {
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .status-good { color: #27ae60; font-weight: bold; }
+        .status-warning { color: #f39c12; font-weight: bold; }
+        .status-error { color: #e74c3c; font-weight: bold; }
+        .footer {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
-    <h1>Relatório SYSBOT - $(Get-Date)</h1>
+    <div class="container">
+        <h1>🖥️ Relatório do Sistema SYSBOT</h1>
+        <p style="text-align: center; color: #7f8c8d;">Gerado em: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')</p>
+
+        <h2>💻 Informações Gerais</h2>
+        <table>
+            <tr><th>Item</th><th>Informação</th></tr>
+            <tr><td>Sistema Operacional</td><td>$($os.Caption)</td></tr>
+            <tr><td>Versão</td><td>$($os.Version)</td></tr>
+            <tr><td>Arquitetura</td><td>$($os.OSArchitecture)</td></tr>
+            <tr><td>Fabricante</td><td>$($computer.Manufacturer)</td></tr>
+            <tr><td>Modelo</td><td>$($computer.Model)</td></tr>
+            <tr><td>Processador</td><td>$($processor.Name)</td></tr>
+            <tr><td>Núcleos Lógicos</td><td>$($processor.NumberOfLogicalProcessors)</td></tr>
+            <tr><td>Memória Total</td><td>$([math]::Round($computer.TotalPhysicalMemory/1GB, 2)) GB</td></tr>
+        </table>
+
+        <h2>🧠 Status da Memória</h2>
+        <table>
+            <tr><th>Métrica</th><th>Valor</th></tr>
+            <tr><td>Total</td><td>$([math]::Round($os.TotalVisibleMemorySize/1MB, 2)) GB</td></tr>
+            <tr><td>Disponível</td><td>$([math]::Round($os.FreePhysicalMemory/1MB, 2)) GB</td></tr>
+            <tr><td>Em Uso</td><td>$([math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory)/1MB, 2)) GB</td></tr>
+            <tr><td>Percentual de Uso</td><td>$([math]::Round((($os.TotalVisibleMemorySize - $os.FreePhysicalMemory)/$os.TotalVisibleMemorySize)*100, 1))%</td></tr>
+        </table>
+
+        <h2>💾 Informações de Armazenamento</h2>
+        <table>
+            <tr><th>Unidade</th><th>Tamanho Total</th><th>Espaço Livre</th><th>Usado</th><th>Status</th></tr>
 "@
 
-        # Informações do sistema
-        $os = Get-CimInstance Win32_OperatingSystem
-        $computer = Get-CimInstance Win32_ComputerSystem
-        $bios = Get-CimInstance Win32_BIOS
+        # Adicionar informações de disco
+        $volumes = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
+        foreach ($volume in $volumes) {
+            $totalGB = [math]::Round($volume.Size/1GB, 2)
+            $freeGB = [math]::Round($volume.SizeRemaining/1GB, 2)
+            $usedGB = $totalGB - $freeGB
+            $usedPercent = if ($totalGB -gt 0) { [math]::Round(($usedGB/$totalGB)*100, 1) } else { 0 }
 
-        $htmlSystemInfo = @"
-    <h2>Informações do Sistema</h2>
-    <table>
-        <tr><th>Item</th><th>Valor</th></tr>
-        <tr><td>Sistema Operacional</td><td>$($os.Caption) ($($os.OSArchitecture))</td></tr>
-        <tr><td>Versão</td><td>$($os.Version)</td></tr>
-        <tr><td>Fabricante</td><td>$($computer.Manufacturer)</td></tr>
-        <tr><td>Modelo</td><td>$($computer.Model)</td></tr>
-        <tr><td>Processador</td><td>$($computer.NumberOfLogicalProcessors) núcleos</td></tr>
-        <tr><td>Memória Total</td><td>$([math]::Round($computer.TotalPhysicalMemory/1GB, 2)) GB</td></tr>
-        <tr><td>BIOS</td><td>$($bios.Manufacturer) $($bios.SMBIOSBIOSVersion)</td></tr>
-    </table>
+            $status = if ($usedPercent -lt 80) { "status-good" } elseif ($usedPercent -lt 95) { "status-warning" } else { "status-error" }
+
+            $htmlContent += @"
+            <tr>
+                <td>$($volume.DriveLetter):</td>
+                <td>$totalGB GB</td>
+                <td>$freeGB GB</td>
+                <td class="$status">$usedPercent%</td>
+                <td class="$status">$(if ($usedPercent -lt 80) { "Bom" } elseif ($usedPercent -lt 95) { "Atenção" } else { "Crítico" })</td>
+            </tr>
 "@
+        }
 
-        # Informações de memória
-        $memory = Get-CimInstance Win32_OperatingSystem
-        $totalRAM = [math]::Round($memory.TotalVisibleMemorySize/1MB, 2)
-        $freeRAM = [math]::Round($memory.FreePhysicalMemory/1MB, 2)
-        $usedRAM = $totalRAM - $freeRAM
-        $ramUsage = [math]::Round(($usedRAM/$totalRAM)*100, 2)
+        $htmlContent += @"
+        </table>
 
-        $htmlMemory = @"
-    <h2>Uso de Memória</h2>
-    <table>
-        <tr><th>Total</th><th>Em Uso</th><th>Livre</th><th>Uso</th></tr>
-        <tr>
-            <td>$totalRAM GB</td>
-            <td>$usedRAM GB</td>
-            <td>$freeRAM GB</td>
-            <td>$ramUsage%</td>
-        </tr>
-    </table>
-"@
+        <div class="footer">
+            <h3>📋 Recomendações</h3>
+            <ul>
+                <li>✅ Mantenha o sistema sempre atualizado</li>
+                <li>🗂️ Mantenha pelo menos 10-15% de espaço livre em cada unidade</li>
+                <li>🔒 Faça backups regulares dos dados importantes</li>
+                <li>🧹 Execute limpeza de sistema periodicamente</li>
+                <li>🔍 Monitore o desempenho regularmente</li>
+            </ul>
 
-        # Informações de disco
-        $disks = Get-PhysicalDisk | Select-Object FriendlyName, MediaType, Size, HealthStatus
-        $volumes = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } |
-                Select-Object DriveLetter, FileSystemLabel,
-                @{Name='TotalGB';Expression={[math]::Round($_.Size/1GB, 2)}},
-                @{Name='FreeGB';Expression={[math]::Round($_.SizeRemaining/1GB, 2)}}
-
-        $htmlDisks = @"
-    <h2>Discos Físicos</h2>
-    <table>
-        <tr><th>Nome</th><th>Tipo</th><th>Tamanho</th><th>Saúde</th></tr>
-        $($disks | ForEach-Object {
-            "<tr><td>$($_.FriendlyName)</td><td>$($_.MediaType)</td><td>$([math]::Round($_.Size/1GB, 2)) GB</td><td>$($_.HealthStatus)</td></tr>"
-        })
-    </table>
-    
-    <h2>Volumes</h2>
-    <table>
-        <tr><th>Unidade</th><th>Rótulo</th><th>Tamanho</th><th>Livre</th></tr>
-        $($volumes | ForEach-Object {
-            "<tr><td>$($_.DriveLetter):</td><td>$($_.FileSystemLabel)</td><td>$($_.TotalGB) GB</td><td>$($_.FreeGB) GB</td></tr>"
-        })
-    </table>
-"@
-
-        # Drivers
-        $drivers = Get-WmiObject Win32_PnPSignedDriver |
-                Where-Object { $_.DeviceName -and $_.DriverVersion } |
-                Sort-Object DriverDate -Descending |
-                Select-Object -First 10 DeviceName, Manufacturer, DriverVersion,
-                @{Name='DriverDate';Expression={$_.DriverDate.ToShortDateString()}}
-
-        $htmlDrivers = @"
-    <h2>Últimos Drivers Instalados</h2>
-    <table>
-        <tr><th>Dispositivo</th><th>Fabricante</th><th>Versão</th><th>Data</th></tr>
-        $($drivers | ForEach-Object {
-            "<tr><td>$($_.DeviceName)</td><td>$($_.Manufacturer)</td><td>$($_.DriverVersion)</td><td>$($_.DriverDate)</td></tr>"
-        })
-    </table>
-"@
-
-        # Finalizar HTML
-        $htmlFooter = @"
-    <h2>Recomendações</h2>
-    <ul>
-        <li>Verifique regularmente as atualizações do sistema</li>
-        <li>Mantenha pelo menos 15% de espaço livre em cada unidade</li>
-        <li>Faça backups periódicos dos seus dados importantes</li>
-    </ul>
+            <p style="margin-top: 20px; font-size: 12px; color: #7f8c8d; text-align: center;">
+                Relatório gerado pelo SYSBOT v3.2 - Ferramenta de Diagnóstico e Manutenção
+            </p>
+        </div>
+    </div>
 </body>
 </html>
 "@
 
-        # Combinar todas as seções e salvar
-        $fullHtml = $htmlHeader + $htmlSystemInfo + $htmlMemory + $htmlDisks + $htmlDrivers + $htmlFooter
-        $fullHtml | Out-File -FilePath $reportPath -Encoding UTF8
+        # Salvar o arquivo
+        $htmlContent | Out-File -FilePath $reportPath -Encoding UTF8
 
-        Write-Host " `n✅ Relatório gerado com sucesso: $reportPath" -ForegroundColor Green
+        Write-Host "`n✅ Relatório gerado com sucesso!" -ForegroundColor Green
+        Write-Host "📄 Local: $reportPath" -ForegroundColor Cyan
+
+        # Perguntar se deseja abrir o relatório
+        $response = Read-Host "`nDeseja abrir o relatório agora? (S/N)"
+        if ($response -match '^[Ss]') {
+            Start-Process $reportPath
+        }
+
         return $reportPath
     } catch {
         Write-Host "Erro ao gerar relatório: $($_.Exception.Message)" -ForegroundColor Red
-        return $false
+        return $null
     }
 }
 
+# Exportar todas as funções do módulo
 Export-ModuleMember -Function *
