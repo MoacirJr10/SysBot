@@ -1,9 +1,3 @@
-<#
-    SYSBOT v3.2 - Sistema Avançado de Manutenção e Otimização
-    Script principal com menu interativo - VERSÃO CORRIGIDA
-    Melhorado com tratamento de erros e validações
-#>
-
 # Configurações iniciais
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
@@ -53,13 +47,13 @@ function Verificar-Atualizacoes {
         if ($updates.Count -eq 0) {
             Write-Host "✅ Sistema atualizado!" -ForegroundColor Green
         } else {
-            Write-Host "📦 $($updates.Count) atualizações encontradas" -ForegroundColor Yellow
+            Write-Host "📦 $($updates.Count) atualizacoes encontradas" -ForegroundColor Yellow
             if ($InstallUpdates) {
                 Install-WindowsUpdate -AcceptAll -AutoReboot:$false
             }
         }
     } catch {
-        Write-Host "❌ Erro ao verificar atualizações: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "❌ Erro ao verificar atualizacoes: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "💡 Abrindo Windows Update..." -ForegroundColor Yellow
         Start-Process "ms-settings:windowsupdate"
     }
@@ -97,7 +91,7 @@ function Verificar-Drivers {
 
 # Verificar disco
 function Verificar-Disco {
-    Write-Host "`n[💾] Agendando verificação de disco..." -ForegroundColor Magenta
+    Write-Host "`n[💾] Agendando verificacao de disco..." -ForegroundColor Magenta
 
     try {
         $drives = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
@@ -105,10 +99,10 @@ function Verificar-Disco {
         foreach ($drive in $drives) {
             Write-Host "🔍 Verificando unidade $($drive.DriveLetter):\" -ForegroundColor Yellow
             $result = chkdsk "$($drive.DriveLetter):" /f /r
-            Write-Host "✅ Verificação da unidade $($drive.DriveLetter): concluída" -ForegroundColor Green
+            Write-Host "✅ Verificacao da unidade $($drive.DriveLetter): concluída" -ForegroundColor Green
         }
     } catch {
-        Write-Host "❌ Erro na verificação de disco: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "❌ Erro na verificacao de disco: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
@@ -116,7 +110,7 @@ function Verificar-Disco {
 function Verificar-MemoriaRAM {
     param([switch]$Detailed)
 
-    Write-Host "`n[🧠] Informações da memória RAM:" -ForegroundColor Magenta
+    Write-Host "`n[🧠] Informacoes da memoria RAM:" -ForegroundColor Magenta
 
     try {
         $memory = Get-CimInstance Win32_ComputerSystem
@@ -139,7 +133,7 @@ function Verificar-MemoriaRAM {
         Write-Host "📊 Uso atual: $usedPercent%" -ForegroundColor $(if ($usedPercent -gt 80) { 'Red' } else { 'Green' })
 
     } catch {
-        Write-Host "❌ Erro ao obter informações da RAM: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "❌ Erro ao obter informacoes da RAM: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
@@ -155,7 +149,7 @@ function Testar-VelocidadeInternet {
         }
 
         if ($response.StatusCode -eq 200) {
-            Write-Host "✅ Conexão ativa - Tempo de resposta: $($time.TotalMilliseconds) ms" -ForegroundColor Green
+            Write-Host "✅ Conexao ativa - Tempo de resposta: $($time.TotalMilliseconds) ms" -ForegroundColor Green
         }
 
         # Sugerir teste mais detalhado
@@ -181,7 +175,7 @@ function Limpeza-Avancada {
 
     try {
         if ($IncludeTempFiles) {
-            Write-Host "🗑️  Limpando arquivos temporários..." -ForegroundColor Yellow
+            Write-Host "🗑️  Limpando arquivos temporarios..." -ForegroundColor Yellow
             $tempPaths = @(
                 "$env:TEMP\*",
                 "$env:WINDIR\Temp\*",
@@ -201,7 +195,7 @@ function Limpeza-Avancada {
         }
 
         if ($IncludePrefetch) {
-            Write-Host "🚀 Limpando cache de pré-carregamento..." -ForegroundColor Yellow
+            Write-Host "🚀 Limpando cache de pre-carregamento..." -ForegroundColor Yellow
             try {
                 $prefetchSize = (Get-ChildItem "$env:WINDIR\Prefetch" -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
                 Remove-Item "$env:WINDIR\Prefetch\*" -Force -ErrorAction SilentlyContinue
@@ -220,7 +214,7 @@ function Limpeza-Avancada {
         }
 
         if ($IncludeRecentFiles) {
-            Write-Host "📋 Limpando histórico de documentos recentes..." -ForegroundColor Yellow
+            Write-Host "📋 Limpando historico de documentos recentes..." -ForegroundColor Yellow
             try {
                 Remove-Item "$env:APPDATA\Microsoft\Windows\Recent\*" -Force -ErrorAction SilentlyContinue
             } catch { }
@@ -243,7 +237,7 @@ function Limpeza-Avancada {
         }
 
         $cleanedMB = [math]::Round($totalCleaned / 1MB, 2)
-        Write-Host "✅ Limpeza concluída! Espaço liberado: $cleanedMB MB" -ForegroundColor Green
+        Write-Host "✅ Limpeza concluida! Espaco liberado: $cleanedMB MB" -ForegroundColor Green
 
     } catch {
         Write-Host "❌ Erro durante a limpeza: $($_.Exception.Message)" -ForegroundColor Red
@@ -258,7 +252,7 @@ function Otimizacao-Sistema {
         [switch]$TrimSSD
     )
 
-    Write-Host "`n[⚡] Iniciando otimização do sistema..." -ForegroundColor Magenta
+    Write-Host "`n[⚡] Iniciando otimizacao do sistema..." -ForegroundColor Magenta
 
     try {
         if ($OptimizeDrives) {
@@ -282,7 +276,7 @@ function Otimizacao-Sistema {
                     # Comando de desfragmentação seria executado aqui
                 }
             } else {
-                Write-Host "  ℹ️  Nenhum HDD encontrado para desfragmentação" -ForegroundColor Blue
+                Write-Host "  ℹ️  Nenhum HDD encontrado para desfragmentacao" -ForegroundColor Blue
             }
         }
 
@@ -303,16 +297,16 @@ function Otimizacao-Sistema {
             }
         }
 
-        Write-Host "✅ Otimização concluída!" -ForegroundColor Green
+        Write-Host "✅ Otimizacao concluida!" -ForegroundColor Green
 
     } catch {
-        Write-Host "❌ Erro durante a otimização: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "❌ Erro durante a otimizacao: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
 # Criar relatório do sistema
 function Criar-Relatorio {
-    Write-Host "`n[📄] Gerando relatório do sistema..." -ForegroundColor Magenta
+    Write-Host "`n[📄] Gerando relatorio do sistema..." -ForegroundColor Magenta
 
     try {
         $date = Get-Date -Format "yyyy-MM-dd_HH-mm"
@@ -324,13 +318,61 @@ function Criar-Relatorio {
 <head>
     <title>Relatório do Sistema - $date</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #2E86AB; }
-        h2 { color: #A23B72; }
-        table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .info { background-color: #e8f4fd; padding: 10px; border-radius: 5px; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background-color: #f9f9f9;
+            text-align: center;
+        }
+
+        h1 {
+            color: #2E86AB;
+            margin-bottom: 5px;
+        }
+
+        h2 {
+            color: #A23B72;
+            margin-top: 30px;
+        }
+
+        .info {
+            background-color: #e8f4fd;
+            padding: 10px;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 10px auto;
+            font-weight: bold;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 90%;
+            margin: 20px auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            color: #333;
+            font-weight: bold;
+        }
+
+        td {
+            background-color: #fff;
+        }
+
+        footer {
+            margin-top: 40px;
+            color: #666;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -385,13 +427,14 @@ function Criar-Relatorio {
     </footer>
 </body>
 </html>
+
 "@
 
         $html | Out-File $reportPath -Encoding UTF8
-        Write-Host "✅ Relatório salvo em: $reportPath" -ForegroundColor Green
+        Write-Host "✅ Relatorio salvo em: $reportPath" -ForegroundColor Green
 
     } catch {
-        Write-Host "❌ Erro ao gerar relatório: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "❌ Erro ao gerar relatorio: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
@@ -406,12 +449,12 @@ function Show-MainMenu {
     Write-Host @"
 ======================== MENU PRINCIPAL ========================
 
- [1] 🛠️  Manutenção do Sistema
- [2] 💻 Informações de Hardware
- [3] 🌐 Diagnóstico de Rede
+ [1] 🛠️  Manutencao do Sistema
+ [2] 💻 Informacaes de Hardware
+ [3] 🌐 Diagnostico de Rede
  [4] 🧹 Ferramentas de Limpeza
- [5] ⚙️  Otimização Avançada
- [6] 📊 Relatórios e Diagnósticos
+ [5] ⚙️  Otimizacao Avançada
+ [6] 📊 Relatorios e Diagnosticos
 
  [0] ❌ Sair do SysBot
 
@@ -421,14 +464,14 @@ function Show-MainMenu {
 
 function Show-MaintenanceMenu {
     Write-Host @"
-=================== MANUTENÇÃO DO SISTEMA ===================
+=================== MANUTENCAO DO SISTEMA ===================
 
- [1] 🔄 Verificar e instalar atualizações do Windows
- [2] 🛡️  Verificar integridade do sistema (SFC)
+ [1] 🔄 Verificar e instalar atualizacoes do Windows
+ [2] 🛡️ Verificar integridade do sistema (SFC)
  [3] 🏥 Restaurar saúde do sistema (DISM)
  [4] 🔍 Verificar drivers desatualizados
  [5] 🔄 Atualizar programas (winget)
- [6] ⏱️  Agendar verificação de disco (CHKDSK)
+ [6] ⏱️ Agendar verificacao de disco (CHKDSK)
 
  [9] ↩ Voltar ao menu anterior
  [0] ❌ Sair
@@ -439,11 +482,11 @@ function Show-MaintenanceMenu {
 
 function Show-HardwareMenu {
     Write-Host @"
-================ INFORMAÇÕES DE HARDWARE ================
+================ INFORMACOES DE HARDWARE ================
 
- [1] 💻 Informações básicas do sistema
- [2] 🧠 Detalhes da memória RAM
- [3] 🖥️  Informações da GPU
+ [1] 💻 Informacoes basicas do sistema
+ [2] 🧠 Detalhes da memoria RAM
+ [3] 🖥️ Informacoes da GPU
  [4] 💾 Status dos discos e armazenamento
  [5] 🔥 Temperaturas e ventilação (se disponível)
  [6] 📦 Programas instalados
@@ -457,14 +500,14 @@ function Show-HardwareMenu {
 
 function Show-NetworkMenu {
     Write-Host @"
-================ DIAGNÓSTICO DE REDE ================
+================ DIAGNOSTICO DE REDE ================
 
- [1] 🌐 Configuração de IP/DNS
- [2] 🚦 Testar conectividade básica
+ [1] 🌐 Configuracao de IP/DNS
+ [2] 🚦 Testar conectividade basica
  [3] 📶 Testar velocidade da Internet
  [4] 🔌 Testar portas TCP
- [5] 🧹 Liberar e renovar configuração DHCP
- [6] 🔍 Analisar conexões ativas
+ [5] 🧹 Liberar e renovar configuracao DHCP
+ [6] 🔍 Analisar conexoes ativas
 
  [9] ↩ Voltar ao menu anterior
  [0] ❌ Sair
@@ -477,11 +520,11 @@ function Show-CleanupMenu {
     Write-Host @"
 ============== FERRAMENTAS DE LIMPEZA ==============
 
- [1] 🗑️  Limpeza básica de arquivos temporários
- [2] 🧼 Limpeza avançada com Storage Sense
- [3] 🚀 Limpar cache de pré-carregamento (Prefetch)
- [4] 🖼️  Limpar cache de thumbnails e ícones
- [5] 📋 Limpar histórico de documentos recentes
+ [1] 🗑️ Limpeza basica de arquivos temporarios
+ [2] 🧼 Limpeza avancada com Storage Sense
+ [3] 🚀 Limpar cache de pre-carregamento (Prefetch)
+ [4] 🖼️ Limpar cache de thumbnails e ícones
+ [5] 📋 Limpar historico de documentos recentes
  [6] 🧹 Limpeza completa (todas as opções)
 
  [9] ↩ Voltar ao menu anterior
@@ -493,14 +536,14 @@ function Show-CleanupMenu {
 
 function Show-OptimizationMenu {
     Write-Host @"
-============== OTIMIZAÇÃO AVANÇADA ==============
+============== OTIMIZACAO AVANCADA ==============
 
- [1] ⚡ Otimizar unidades de disco
+ [1] ⚡  Otimizar unidades de disco
  [2] 🌀 Desfragmentar HDDs
- [3] ✂️  Executar TRIM em SSDs
- [4] 🛠️  Ajustar configurações de energia
- [5] 🚀 Desativar serviços não essenciais
- [6] 🧪 Otimização completa (todas as opções)
+ [3] ✂️ Executar TRIM em SSDs
+ [4] 🛠️ Ajustar configuracoes de energia
+ [5] 🚀 Desativar servicos não essenciais
+ [6] 🧪 Otimizacao completa (todas as opcoes)
 
  [9] ↩ Voltar ao menu anterior
  [0] ❌ Sair
@@ -511,12 +554,12 @@ function Show-OptimizationMenu {
 
 function Show-ReportsMenu {
     Write-Host @"
-============ RELATÓRIOS E DIAGNÓSTICOS ============
+============ RELATORIOS E DIAGNOSTICOS ============
 
- [1] 📄 Gerar relatório do sistema (HTML)
+ [1] 📄 Gerar relatorio do sistema (HTML)
  [2] 📊 Exportar lista de drivers (CSV)
  [3] 📋 Exportar programas instalados (TXT)
- [4] 🖨️  Salvar configuração de rede
+ [4] 🖨️ Salvar configuracao de rede
  [5] 📦 Criar dump completo do sistema
  [6] 🔍 Analisar integridade do sistema
 
@@ -546,19 +589,19 @@ do {
                             try {
                                 $result = sfc /scannow
                                 if ($LASTEXITCODE -eq 0) {
-                                    Write-Host "✅ Verificação concluída com sucesso" -ForegroundColor Green
+                                    Write-Host "✅ Verificacao concluída com sucesso" -ForegroundColor Green
                                 } else {
                                     Write-Host "⚠️  Problemas foram encontrados e corrigidos" -ForegroundColor Yellow
                                 }
                             } catch {
-                                Write-Host "❌ Erro na verificação SFC: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro na verificacao SFC: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "3" {
                             Write-Host "`n[🏥] Restaurando saúde do sistema..." -ForegroundColor Magenta
                             try {
                                 DISM /Online /Cleanup-Image /RestoreHealth
-                                Write-Host "✅ Restauração concluída" -ForegroundColor Green
+                                Write-Host "✅ Restauracao concluída" -ForegroundColor Green
                             } catch {
                                 Write-Host "❌ Erro no DISM: $($_.Exception.Message)" -ForegroundColor Red
                             }
@@ -570,7 +613,7 @@ do {
                                 if (Get-Command winget -ErrorAction SilentlyContinue) {
                                     winget upgrade --all --accept-package-agreements --accept-source-agreements
                                 } else {
-                                    Write-Host "⚠️  Winget não encontrado. Instale o App Installer da Microsoft Store" -ForegroundColor Yellow
+                                    Write-Host "⚠️  Winget nao encontrado. Instale o App Installer da Microsoft Store" -ForegroundColor Yellow
                                 }
                             } catch {
                                 Write-Host "❌ Erro no winget: $($_.Exception.Message)" -ForegroundColor Red
@@ -579,7 +622,7 @@ do {
                         "6" { Verificar-Disco }
                         "9" { break }
                         "0" { exit }
-                        default { Write-Host "❌ Opção inválida" -ForegroundColor Red }
+                        default { Write-Host "❌ Opcao inválida" -ForegroundColor Red }
                     }
 
                     if ($subChoice -notin "0","9") { Pausar }
@@ -589,34 +632,34 @@ do {
             "2" { # Informações de Hardware
                 do {
                     Show-HardwareMenu
-                    $subChoice = Read-Host "`nDigite sua opção"
+                    $subChoice = Read-Host "`nDigite sua opcao"
 
                     switch ($subChoice) {
                         "1" {
-                            Write-Host "`n[💻] Informações básicas do sistema:" -ForegroundColor Magenta
+                            Write-Host "`n[💻] Informacoes basicas do sistema:" -ForegroundColor Magenta
                             try {
                                 $os = Get-CimInstance Win32_OperatingSystem
                                 $cs = Get-CimInstance Win32_ComputerSystem
 
-                                Write-Host "🖥️  Computador: $($cs.Name)" -ForegroundColor Cyan
+                                Write-Host "🖥️ Computador: $($cs.Name)" -ForegroundColor Cyan
                                 Write-Host "💻 Sistema: $($os.Caption)" -ForegroundColor Cyan
-                                Write-Host "📊 Versão: $($os.Version)" -ForegroundColor Cyan
+                                Write-Host "📊 Versao: $($os.Version)" -ForegroundColor Cyan
                                 Write-Host "🏢 Fabricante: $($cs.Manufacturer)" -ForegroundColor Cyan
                                 Write-Host "📱 Modelo: $($cs.Model)" -ForegroundColor Cyan
                             } catch {
-                                Write-Host "❌ Erro ao obter informações: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro ao obter informacoes: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "2" { Verificar-MemoriaRAM -Detailed }
                         "3" {
-                            Write-Host "`n[🖥️] Informações da GPU:" -ForegroundColor Magenta
+                            Write-Host "`n[🖥️] Informacoes da GPU:" -ForegroundColor Magenta
                             try {
                                 Get-CimInstance Win32_VideoController |
                                         Where-Object { $_.Name -notlike "*Basic*" } |
                                         Select-Object Name, DriverVersion, @{Name='VRAM(MB)';Expression={[math]::Round($_.AdapterRAM/1MB,0)}} |
                                         Format-Table -AutoSize
                             } catch {
-                                Write-Host "❌ Erro ao obter informações da GPU: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro ao obter informacoes da GPU: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "4" {
@@ -633,18 +676,18 @@ do {
                                         @{Name='%Free';Expression={[math]::Round(($_.SizeRemaining/$_.Size)*100,1)}} |
                                         Format-Table -AutoSize
                             } catch {
-                                Write-Host "❌ Erro ao obter informações de disco: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro ao obter informacoes de disco: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "5" {
-                            Write-Host "`n[🔥] Informações de temperatura:" -ForegroundColor Magenta
+                            Write-Host "`n[🔥] Informacoes de temperatura:" -ForegroundColor Magenta
                             try {
                                 # Tentar obter informações de temperatura
                                 $temps = Get-CimInstance -ClassName Win32_TemperatureProbe -ErrorAction SilentlyContinue
                                 if ($temps) {
                                     $temps | Select-Object Name, CurrentTemperature | Format-Table -AutoSize
                                 } else {
-                                    Write-Host "⚠️  Sensores de temperatura não disponíveis via WMI" -ForegroundColor Yellow
+                                    Write-Host "⚠️  Sensores de temperatura nao disponíveis via WMI" -ForegroundColor Yellow
                                 }
 
                                 # Informações de ventiladores
@@ -656,7 +699,7 @@ do {
                                     Write-Host "💡 Use ferramentas como HWiNFO64 ou Core Temp para monitoramento detalhado" -ForegroundColor Blue
                                 }
                             } catch {
-                                Write-Host "❌ Erro ao obter informações térmicas: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro ao obter informacoes termicas: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "6" {
@@ -676,7 +719,7 @@ do {
                         }
                         "9" { break }
                         "0" { exit }
-                        default { Write-Host "❌ Opção inválida" -ForegroundColor Red }
+                        default { Write-Host "❌ Opcao invalida" -ForegroundColor Red }
                     }
 
                     if ($subChoice -notin "0","9") { Pausar }
@@ -686,13 +729,13 @@ do {
             "3" { # Diagnóstico de Rede
                 do {
                     Show-NetworkMenu
-                    $subChoice = Read-Host "`nDigite sua opção"
+                    $subChoice = Read-Host "`nDigite sua opcao"
 
                     switch ($subChoice) {
                         "1" {
-                            Write-Host "`n[🌐] Configuração de rede:" -ForegroundColor Magenta
+                            Write-Host "`n[🌐] Configuracao de rede:" -ForegroundColor Magenta
                             try {
-                                Write-Host "`nConfiguração IP:" -ForegroundColor Yellow
+                                Write-Host "`nConfiguracao IP:" -ForegroundColor Yellow
                                 Get-NetIPConfiguration | Where-Object { $_.NetAdapter.Status -eq "Up" } |
                                         Select-Object InterfaceAlias, IPv4Address, IPv4DefaultGateway, DNSServer |
                                         Format-Table -AutoSize
@@ -702,7 +745,7 @@ do {
                                         Select-Object Name, InterfaceDescription, LinkSpeed |
                                         Format-Table -AutoSize
                             } catch {
-                                Write-Host "❌ Erro ao obter configuração de rede: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro ao obter configuracao de rede: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "2" {
@@ -750,7 +793,7 @@ do {
                             }
                         }
                         "5" {
-                            Write-Host "`n[🧹] Renovando configuração de rede..." -ForegroundColor Magenta
+                            Write-Host "`n[🧹] Renovando configuracao de rede..." -ForegroundColor Magenta
                             try {
                                 Write-Host "🔄 Limpando cache DNS..." -ForegroundColor Yellow
                                 ipconfig /flushdns | Out-Null
@@ -761,13 +804,13 @@ do {
                                 Write-Host "🔄 Renovando IP..." -ForegroundColor Yellow
                                 ipconfig /renew | Out-Null
 
-                                Write-Host "✅ Configuração de rede renovada!" -ForegroundColor Green
+                                Write-Host "✅ Configuracao de rede renovada!" -ForegroundColor Green
                             } catch {
                                 Write-Host "❌ Erro ao renovar rede: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "6" {
-                            Write-Host "`n[🔍] Conexões ativas:" -ForegroundColor Magenta
+                            Write-Host "`n[🔍] Conexoes ativas:" -ForegroundColor Magenta
                             try {
                                 $connections = Get-NetTCPConnection -State Established |
                                         Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State,
@@ -777,12 +820,12 @@ do {
 
                                 $connections | Out-Host -Paging
                             } catch {
-                                Write-Host "❌ Erro ao listar conexões: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro ao listar conexoes: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "9" { break }
                         "0" { exit }
-                        default { Write-Host "❌ Opção inválida" -ForegroundColor Red }
+                        default { Write-Host "❌ Opcao invalida" -ForegroundColor Red }
                     }
 
                     if ($subChoice -notin "0","9") { Pausar }
@@ -792,7 +835,7 @@ do {
             "4" { # Ferramentas de Limpeza
                 do {
                     Show-CleanupMenu
-                    $subChoice = Read-Host "`nDigite sua opção"
+                    $subChoice = Read-Host "`nDigite sua opcao"
 
                     switch ($subChoice) {
                         "1" { Limpeza-Avancada -IncludeTempFiles }
@@ -810,7 +853,7 @@ do {
                         "6" { Limpeza-Avancada -IncludeTempFiles -IncludeThumbnails -IncludePrefetch -IncludeLogs -IncludeRecentFiles }
                         "9" { break }
                         "0" { exit }
-                        default { Write-Host "❌ Opção inválida" -ForegroundColor Red }
+                        default { Write-Host "❌ Opcao invalida" -ForegroundColor Red }
                     }
 
                     if ($subChoice -notin "0","9") { Pausar }
@@ -820,14 +863,14 @@ do {
             "5" { # Otimização Avançada
                 do {
                     Show-OptimizationMenu
-                    $subChoice = Read-Host "`nDigite sua opção"
+                    $subChoice = Read-Host "`nDigite sua opcao"
 
                     switch ($subChoice) {
                         "1" { Otimizacao-Sistema -OptimizeDrives }
                         "2" { Otimizacao-Sistema -Defrag }
                         "3" { Otimizacao-Sistema -TrimSSD }
                         "4" {
-                            Write-Host "`n[🛠️] Configurações de energia:" -ForegroundColor Magenta
+                            Write-Host "`n[🛠️] Configuracoes de energia:" -ForegroundColor Magenta
                             try {
                                 Write-Host "📊 Planos de energia disponíveis:" -ForegroundColor Yellow
                                 powercfg /list
@@ -845,23 +888,23 @@ do {
                             }
                         }
                         "5" {
-                            Write-Host "`n[🚀] Análise de serviços:" -ForegroundColor Magenta
+                            Write-Host "`n[🚀] Analise de servicos:" -ForegroundColor Magenta
                             try {
-                                Write-Host "⚠️  CUIDADO: Não desative serviços sem conhecimento técnico!" -ForegroundColor Red
-                                Write-Host "`n📊 Serviços automáticos parados:" -ForegroundColor Yellow
+                                Write-Host "⚠️  CUIDADO: Nao desative servicos sem conhecimento tecnico!" -ForegroundColor Red
+                                Write-Host "`n📊 Servicos automaticos parados:" -ForegroundColor Yellow
 
                                 Get-Service | Where-Object { $_.StartType -eq "Automatic" -and $_.Status -eq "Stopped" } |
                                         Select-Object Name, DisplayName, Status, StartType |
                                         Format-Table -AutoSize
 
-                                Write-Host "💡 Use 'services.msc' para gerenciar serviços com segurança" -ForegroundColor Blue
+                                Write-Host "💡 Use 'services.msc' para gerenciar servicos com seguranca" -ForegroundColor Blue
                             } catch {
-                                Write-Host "❌ Erro na análise de serviços: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro na analise de servicos: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "6" {
-                            Write-Host "`n[🧪] Iniciando otimização completa..." -ForegroundColor Magenta
-                            Write-Host "⚠️  Este processo pode demorar vários minutos" -ForegroundColor Yellow
+                            Write-Host "`n[🧪] Iniciando otimizacao completa..." -ForegroundColor Magenta
+                            Write-Host "⚠️  Este processo pode demorar varios minutos" -ForegroundColor Yellow
                             $confirm = Read-Host "Continuar? (s/n)"
                             if ($confirm -eq 's' -or $confirm -eq 'S') {
                                 Otimizacao-Sistema -OptimizeDrives -TrimSSD
@@ -869,7 +912,7 @@ do {
                         }
                         "9" { break }
                         "0" { exit }
-                        default { Write-Host "❌ Opção inválida" -ForegroundColor Red }
+                        default { Write-Host "❌ Opcao invalida" -ForegroundColor Red }
                     }
 
                     if ($subChoice -notin "0","9") { Pausar }
@@ -879,7 +922,7 @@ do {
             "6" { # Relatórios e Diagnósticos
                 do {
                     Show-ReportsMenu
-                    $subChoice = Read-Host "`nDigite sua opção"
+                    $subChoice = Read-Host "`nDigite sua opcao"
 
                     switch ($subChoice) {
                         "1" { Criar-Relatorio }
@@ -904,15 +947,15 @@ do {
                             }
                         }
                         "4" {
-                            Write-Host "`n[🖨️] Salvando configuração de rede..." -ForegroundColor Magenta
+                            Write-Host "`n[🖨️] Salvando configuracao de rede..." -ForegroundColor Magenta
                             try {
                                 $date = Get-Date -Format "yyyy-MM-dd"
                                 $file = "$env:USERPROFILE\Desktop\Configuracao_Rede_$date.txt"
 
-                                "=== CONFIGURAÇÃO DE REDE - $date ===" | Out-File $file
+                                "=== CONFIGURACAO DE REDE - $date ===" | Out-File $file
                                 "Gerado pelo SysBot v3.2`n" | Out-File $file -Append
 
-                                "=== CONFIGURAÇÃO IP ===" | Out-File $file -Append
+                                "=== CONFIGURACAO IP ===" | Out-File $file -Append
                                 ipconfig /all | Out-File $file -Append
 
                                 "`n=== ADAPTADORES ===" | Out-File $file -Append
@@ -921,9 +964,9 @@ do {
                                 "`n=== ROTAS ===" | Out-File $file -Append
                                 route print | Out-File $file -Append
 
-                                Write-Host "✅ Configuração salva em: $file" -ForegroundColor Green
+                                Write-Host "✅ Configuracao salva em: $file" -ForegroundColor Green
                             } catch {
-                                Write-Host "❌ Erro ao salvar configuração: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro ao salvar configuracao: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "5" {
@@ -933,22 +976,22 @@ do {
                                 $folder = "$env:USERPROFILE\Desktop\SysBot_Dump_$date"
                                 New-Item -ItemType Directory -Path $folder -Force | Out-Null
 
-                                Write-Host "📄 Coletando informações do sistema..." -ForegroundColor Yellow
+                                Write-Host "📄 Coletando informacoes do sistema..." -ForegroundColor Yellow
                                 systeminfo | Out-File "$folder\systeminfo.txt" -Encoding UTF8
 
-                                Write-Host "🖥️  Coletando informações de hardware..." -ForegroundColor Yellow
+                                Write-Host "🖥️  Coletando informacoes de hardware..." -ForegroundColor Yellow
                                 Get-CimInstance Win32_ComputerSystem | Out-File "$folder\hardware.txt" -Encoding UTF8
 
                                 Write-Host "⚙️  Coletando processos..." -ForegroundColor Yellow
                                 Get-Process | Sort-Object CPU -Descending | Out-File "$folder\processes.txt" -Encoding UTF8
 
-                                Write-Host "🔧 Coletando serviços..." -ForegroundColor Yellow
+                                Write-Host "🔧 Coletando servicos..." -ForegroundColor Yellow
                                 Get-Service | Sort-Object Status, Name | Out-File "$folder\services.txt" -Encoding UTF8
 
-                                Write-Host "🌐 Coletando configuração de rede..." -ForegroundColor Yellow
+                                Write-Host "🌐 Coletando configuracao de rede..." -ForegroundColor Yellow
                                 ipconfig /all | Out-File "$folder\network.txt" -Encoding UTF8
 
-                                Write-Host "💾 Coletando informações de disco..." -ForegroundColor Yellow
+                                Write-Host "💾 Coletando informacoes de disco..." -ForegroundColor Yellow
                                 Get-Volume | Out-File "$folder\disks.txt" -Encoding UTF8
 
                                 Write-Host "✅ Dump completo salvo em: $folder" -ForegroundColor Green
@@ -970,19 +1013,19 @@ do {
                                         $results += "⚠️  SFC: Problemas encontrados"
                                     }
                                 } catch {
-                                    $results += "❌ SFC: Erro na verificação"
+                                    $results += "❌ SFC: Erro na verificacao"
                                 }
 
                                 Write-Host "🏥 Verificando DISM..." -ForegroundColor Yellow
                                 try {
                                     $dismResult = DISM /Online /Cleanup-Image /ScanHealth 2>&1
-                                    if ($dismResult -match "nenhuma corrupção" -or $dismResult -match "no corruption") {
+                                    if ($dismResult -match "nenhuma corrupcao" -or $dismResult -match "no corruption") {
                                         $results += "✅ DISM: Imagem íntegra"
                                     } else {
                                         $results += "⚠️  DISM: Possíveis problemas encontrados"
                                     }
                                 } catch {
-                                    $results += "❌ DISM: Erro na verificação"
+                                    $results += "❌ DISM: Erro na verificacao"
                                 }
 
                                 Write-Host "🔍 Verificando drivers..." -ForegroundColor Yellow
@@ -994,21 +1037,21 @@ do {
                                         $results += "✅ DRIVERS: Todos funcionando corretamente"
                                     }
                                 } catch {
-                                    $results += "❌ DRIVERS: Erro na verificação"
+                                    $results += "❌ DRIVERS: Erro na verificacao"
                                 }
 
-                                Write-Host "`n=== RESULTADOS DA ANÁLISE ===" -ForegroundColor Cyan
+                                Write-Host "`n=== RESULTADOS DA ANALISE ===" -ForegroundColor Cyan
                                 $results | ForEach-Object {
                                     $color = if ($_ -match "✅") { 'Green' } elseif ($_ -match "⚠️") { 'Yellow' } else { 'Red' }
                                     Write-Host $_ -ForegroundColor $color
                                 }
                             } catch {
-                                Write-Host "❌ Erro na análise de integridade: $($_.Exception.Message)" -ForegroundColor Red
+                                Write-Host "❌ Erro na analise de integridade: $($_.Exception.Message)" -ForegroundColor Red
                             }
                         }
                         "9" { break }
                         "0" { exit }
-                        default { Write-Host "❌ Opção inválida" -ForegroundColor Red }
+                        default { Write-Host "❌ Opção invalida" -ForegroundColor Red }
                     }
 
                     if ($subChoice -notin "0","9") { Pausar }
@@ -1016,13 +1059,13 @@ do {
             }
 
             "0" {
-                Write-Host "`n👋 Encerrando SysBot. Até logo!" -ForegroundColor Green
+                Write-Host "`n👋 Encerrando SysBot. Ate logo!" -ForegroundColor Green
                 Start-Sleep -Seconds 2
                 exit
             }
 
             default {
-                Write-Host "`n❌ Opção inválida. Tente novamente." -ForegroundColor Red
+                Write-Host "`n❌ Opção invalida. Tente novamente." -ForegroundColor Red
                 Pausar
             }
         }
@@ -1030,7 +1073,7 @@ do {
         Write-Host "`n💥 ERRO CRÍTICO:" -ForegroundColor Red
         Write-Host "Mensagem: $($_.Exception.Message)" -ForegroundColor Yellow
         Write-Host "Local: $($_.InvocationInfo.ScriptName):$($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Yellow
-        Write-Host "`n🔧 Tente executar como Administrador ou verifique permissões" -ForegroundColor Blue
+        Write-Host "`n🔧 Tente executar como Administrador ou verifique permissoes" -ForegroundColor Blue
         Pausar
     }
 } while ($true)

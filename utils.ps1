@@ -42,7 +42,7 @@ function Test-Administrator {
         return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     }
     catch {
-        Write-Warning "Não foi possível verificar privilégios de administrador: $($_.Exception.Message)"
+        Write-Warning "Nao foi possivel verificar privilegios de administrador: $($_.Exception.Message)"
         return $false
     }
 }
@@ -53,7 +53,7 @@ function Get-MemoryInfo {
         [switch]$Detailed
     )
 
-    Write-Host "`n[🧠] Verificando uso de memória RAM..." -ForegroundColor Magenta
+    Write-Host "`n[🧠] Verificando uso de memoria RAM..." -ForegroundColor Magenta
     try {
         $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
         $totalGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
@@ -75,14 +75,14 @@ function Get-MemoryInfo {
             }
             catch {
                 Write-Host "`n🧠 Total: $totalGB GB | Em Uso: $usedGB GB ($percentUsed%)" -ForegroundColor White
-                Write-Warning "Não foi possível obter detalhes dos módulos de RAM"
+                Write-Warning "Nao foi possível obter detalhes dos modulos de RAM"
             }
         } else {
             Write-Host "`n🧠 Total: $totalGB GB | Em Uso: $usedGB GB ($percentUsed%)" -ForegroundColor White
         }
         return $true
     } catch {
-        Write-Host "Erro ao verificar memória: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Erro ao verificar memoria: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
 }
@@ -93,23 +93,23 @@ function Test-WindowsUpdates {
         [switch]$InstallUpdates
     )
 
-    Write-Host "`n[🔄] Verificando atualizações do Windows..." -ForegroundColor Magenta
+    Write-Host "`n[🔄] Verificando atualizacoes do Windows..." -ForegroundColor Magenta
 
     if (-not (Test-Administrator)) {
-        Write-Host "AVISO: Privilégios de administrador necessários para verificar atualizações." -ForegroundColor Yellow
+        Write-Host "AVISO: Privilegios de administrador necessários para verificar atualizacoes." -ForegroundColor Yellow
         return $false
     }
 
     try {
         # Verificar se o módulo PSWindowsUpdate está disponível
         if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-            Write-Host "Instalando módulo PSWindowsUpdate..." -ForegroundColor Yellow
+            Write-Host "Instalando modulo PSWindowsUpdate..." -ForegroundColor Yellow
             try {
                 Install-Module -Name PSWindowsUpdate -Force -Confirm:$false -AllowClobber -Scope CurrentUser -ErrorAction Stop
             }
             catch {
                 Write-Host "Erro ao instalar PSWindowsUpdate: $($_.Exception.Message)" -ForegroundColor Red
-                Write-Host "Tentando método alternativo..." -ForegroundColor Yellow
+                Write-Host "Tentando metodo alternativo..." -ForegroundColor Yellow
 
                 # Método alternativo usando Windows Update Agent API
                 $updateSession = New-Object -ComObject Microsoft.Update.Session
@@ -117,12 +117,12 @@ function Test-WindowsUpdates {
                 $searchResult = $updateSearcher.Search("IsInstalled=0")
 
                 if ($searchResult.Updates.Count -gt 0) {
-                    Write-Host "`nEncontradas $($searchResult.Updates.Count) atualizações disponíveis" -ForegroundColor Yellow
+                    Write-Host "`nEncontradas $($searchResult.Updates.Count) atualizacoes disponiveis" -ForegroundColor Yellow
                     foreach ($update in $searchResult.Updates) {
                         Write-Host "- $($update.Title)" -ForegroundColor White
                     }
                 } else {
-                    Write-Host "`nNenhuma atualização disponível." -ForegroundColor Green
+                    Write-Host "`nNenhuma atualizacao disponivel." -ForegroundColor Green
                 }
                 return $true
             }
@@ -132,19 +132,19 @@ function Test-WindowsUpdates {
         $updates = Get-WindowsUpdate -ErrorAction Stop
 
         if ($updates.Count -gt 0) {
-            Write-Host "`nAtualizações disponíveis:" -ForegroundColor Yellow
+            Write-Host "`nAtualizacoes disponiveis:" -ForegroundColor Yellow
             $updates | Select-Object Title, KB, Size | Format-Table -AutoSize
 
             if ($InstallUpdates) {
-                Write-Host "`nInstalando atualizações..." -ForegroundColor Yellow
+                Write-Host "`nInstalando atualizacoes..." -ForegroundColor Yellow
                 Install-WindowsUpdate -AcceptAll -Install -AutoReboot | Out-Host
             }
         } else {
-            Write-Host "`nNenhuma atualização disponível." -ForegroundColor Green
+            Write-Host "`nNenhuma atualizacao disponivel." -ForegroundColor Green
         }
         return $true
     } catch {
-        Write-Host "Erro ao verificar atualizações: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Erro ao verificar atualizacoes: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
 }
@@ -169,7 +169,7 @@ function Invoke-SystemCleanup {
 
         # Limpeza adicional baseada nos parâmetros
         if ($IncludeTempFiles) {
-            Write-Host "Limpando arquivos temporários..." -ForegroundColor Cyan
+            Write-Host "Limpando arquivos temporarios..." -ForegroundColor Cyan
             $tempPaths = @(
                 "$env:TEMP\*",
                 "$env:SystemRoot\Temp\*",
@@ -183,7 +183,7 @@ function Invoke-SystemCleanup {
                     }
                 }
                 catch {
-                    Write-Verbose "Não foi possível limpar: $path"
+                    Write-Verbose "Nao foi possível limpar: $path"
                 }
             }
         }
@@ -200,7 +200,7 @@ function Invoke-SystemCleanup {
                     Remove-Item -Path $path -Force -ErrorAction SilentlyContinue
                 }
                 catch {
-                    Write-Verbose "Não foi possível remover: $path"
+                    Write-Verbose "Nao foi possivel remover: $path"
                 }
             }
         }
@@ -211,7 +211,7 @@ function Invoke-SystemCleanup {
                 Remove-Item -Path "$env:SystemRoot\Prefetch\*" -Force -ErrorAction SilentlyContinue
             }
             catch {
-                Write-Verbose "Não foi possível limpar Prefetch"
+                Write-Verbose "Nao foi possível limpar Prefetch"
             }
         }
 
@@ -231,12 +231,12 @@ function Invoke-SystemCleanup {
                     }
                 }
                 catch {
-                    Write-Verbose "Não foi possível limpar logs em: $path"
+                    Write-Verbose "Nao foi possível limpar logs em: $path"
                 }
             }
         }
 
-        Write-Host "`n✅ Limpeza concluída!" -ForegroundColor Green
+        Write-Host "`n✅ Limpeza concluida!" -ForegroundColor Green
         return $true
     } catch {
         Write-Host "Erro durante a limpeza: $($_.Exception.Message)" -ForegroundColor Red
@@ -255,7 +255,7 @@ function Optimize-SystemDrives {
     Write-Host "`n[⚙️] Otimizando unidades de disco..." -ForegroundColor Magenta
 
     if (-not (Test-Administrator)) {
-        Write-Host "AVISO: Privilégios de administrador necessários para otimização." -ForegroundColor Yellow
+        Write-Host "AVISO: Privilegios de administrador necessarios para otimizacao." -ForegroundColor Yellow
         return $false
     }
 
@@ -267,7 +267,7 @@ function Optimize-SystemDrives {
         }
 
         if (-not $volumes) {
-            Write-Host "Nenhuma unidade elegível encontrada." -ForegroundColor Yellow
+            Write-Host "Nenhuma unidade elegivel encontrada." -ForegroundColor Yellow
             return $false
         }
 
@@ -302,10 +302,10 @@ function Optimize-SystemDrives {
             }
         }
 
-        Write-Host "`n✅ Otimização concluída!" -ForegroundColor Green
+        Write-Host "`n✅ Otimizacao concluída!" -ForegroundColor Green
         return $true
     } catch {
-        Write-Host "Erro durante a otimização: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Erro durante a otimizacao: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
 }
@@ -371,7 +371,7 @@ function Test-InternetSpeed {
         }
 
         # Teste simples de velocidade de download
-        Write-Host "Executando teste de velocidade (método simplificado)..." -ForegroundColor Cyan
+        Write-Host "Executando teste de velocidade (metodo simplificado)..." -ForegroundColor Cyan
 
         $testUrl = "http://speedtest.ftp.otenet.gr/files/test1Mb.db"
         $testFile = "$env:TEMP\speedtest.tmp"
@@ -414,7 +414,7 @@ function New-SystemReport {
         [string]$OutputPath = $env:USERPROFILE
     )
 
-    Write-Host "`n[📄] Gerando relatório do sistema..." -ForegroundColor Magenta
+    Write-Host "`n[📄] Gerando relatorio do sistema..." -ForegroundColor Magenta
 
     try {
         $date = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
@@ -436,65 +436,102 @@ function New-SystemReport {
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 20px;
+            margin: 0;
+            padding: 0;
             background-color: #f5f5f5;
         }
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 1000px;
+            margin: 40px auto;
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
         h1 {
             color: #2c3e50;
             text-align: center;
             border-bottom: 3px solid #3498db;
             padding-bottom: 10px;
+            margin-bottom: 10px;
         }
         h2 {
             color: #3498db;
-            border-bottom: 1px solid #eee;
+            border-bottom: 2px solid #ecf0f1;
             padding-bottom: 5px;
-            margin-top: 30px;
+            margin-top: 40px;
         }
         table {
             border-collapse: collapse;
             width: 100%;
-            margin-bottom: 20px;
-            border-radius: 5px;
+            margin: 20px 0;
+            border-radius: 8px;
             overflow: hidden;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.05);
         }
         th {
             background-color: #3498db;
             color: white;
-            text-align: left;
+            text-align: center;
             padding: 12px;
-            font-weight: bold;
+            font-size: 15px;
         }
         td {
-            border: 1px solid #ddd;
+            border: 1px solid #eee;
             padding: 10px;
+            text-align: center;
+            background-color: #fff;
+            font-size: 14px;
         }
-        tr:nth-child(even) {
+        tr:nth-child(even) td {
             background-color: #f8f9fa;
         }
-        .status-good { color: #27ae60; font-weight: bold; }
-        .status-warning { color: #f39c12; font-weight: bold; }
-        .status-error { color: #e74c3c; font-weight: bold; }
+        .status-good {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .status-warning {
+            color: #f39c12;
+            font-weight: bold;
+        }
+        .status-error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
         .footer {
-            margin-top: 30px;
+            margin-top: 40px;
             padding: 20px;
             background-color: #ecf0f1;
-            border-radius: 5px;
+            border-radius: 8px;
+        }
+        .footer h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .footer ul {
+            text-align: left;
+            padding-left: 20px;
+        }
+        .footer li {
+            margin-bottom: 8px;
+        }
+        .footer p {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #7f8c8d;
+            text-align: center;
+        }
+        .date {
+            text-align: center;
+            color: #7f8c8d;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🖥️ Relatório do Sistema SYSBOT</h1>
-        <p style="text-align: center; color: #7f8c8d;">Gerado em: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')</p>
+        <p class="date">Gerado em: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')</p>
 
         <h2>💻 Informações Gerais</h2>
         <table>
@@ -523,7 +560,7 @@ function New-SystemReport {
             <tr><th>Unidade</th><th>Tamanho Total</th><th>Espaço Livre</th><th>Usado</th><th>Status</th></tr>
 "@
 
-        # Adicionar informações de disco
+        # PowerShell loop de volumes
         $volumes = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
         foreach ($volume in $volumes) {
             $totalGB = [math]::Round($volume.Size/1GB, 2)
@@ -538,8 +575,8 @@ function New-SystemReport {
                 <td>$($volume.DriveLetter):</td>
                 <td>$totalGB GB</td>
                 <td>$freeGB GB</td>
-                <td class="$status">$usedPercent%</td>
-                <td class="$status">$(if ($usedPercent -lt 80) { "Bom" } elseif ($usedPercent -lt 95) { "Atenção" } else { "Crítico" })</td>
+                <td class='$status'>$usedPercent%</td>
+                <td class='$status'>$(if ($usedPercent -lt 80) { "Bom" } elseif ($usedPercent -lt 95) { "Atenção" } else { "Crítico" })</td>
             </tr>
 "@
         }
@@ -556,24 +593,24 @@ function New-SystemReport {
                 <li>🧹 Execute limpeza de sistema periodicamente</li>
                 <li>🔍 Monitore o desempenho regularmente</li>
             </ul>
-
-            <p style="margin-top: 20px; font-size: 12px; color: #7f8c8d; text-align: center;">
-                Relatório gerado pelo SYSBOT v3.2 - Ferramenta de Diagnóstico e Manutenção
+            <p>
+                Relatório gerado pelo SYSBOT v3.2 — Ferramenta de Diagnóstico e Manutenção
             </p>
         </div>
     </div>
 </body>
 </html>
+
 "@
 
         # Salvar o arquivo
         $htmlContent | Out-File -FilePath $reportPath -Encoding UTF8
 
-        Write-Host "`n✅ Relatório gerado com sucesso!" -ForegroundColor Green
+        Write-Host "`n✅ Relatorio gerado com sucesso!" -ForegroundColor Green
         Write-Host "📄 Local: $reportPath" -ForegroundColor Cyan
 
         # Perguntar se deseja abrir o relatório
-        $response = Read-Host "`nDeseja abrir o relatório agora? (S/N)"
+        $response = Read-Host "`nDeseja abrir o relatorio agora? (S/N)"
         if ($response -match '^[Ss]') {
             Start-Process $reportPath
         }
