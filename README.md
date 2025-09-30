@@ -8,5 +8,5 @@ Bot de linha de comando para otimização automática de sistemas Windows.
 - Otimização de inicialização
 
 ## Como usar
-1. Clique com botão direito em `run_sysbot.bat` > Executar como administrador
+1. Clique com botão direito em `run_admin.bat` > Executar como administrador
 2. Aguarde a conclusão do processo

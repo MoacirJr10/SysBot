@@ -1,7 +1,7 @@
 function Write-Header {
     [CmdletBinding()]
     param(
-        [string]$Title = "SYSBOT v3.2 TECH TOOL"
+        [string]$Title = "SYSBOT TECH TOOL"
     )
 
     Clear-Host
