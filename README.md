@@ -12,6 +12,26 @@ SysBot e uma poderosa suite de ferramentas de linha de comando, escrita em Power
 
 ---
 
+## ⚠️ Aviso de Seguranca e Fonte Oficial
+
+A unica fonte oficial e segura para obter o codigo-fonte do SysBot e o repositorio principal no GitHub:
+
+**[https://github.com/MoacirJr10/SysBot](https://github.com/MoacirJr10/SysBot)**
+
+Para obter o projeto, use o comando `git clone` ou a opcao "Download ZIP" diretamente da pagina acima.
+
+### Dicas para se Manter Seguro
+
+1.  **Confie Apenas na Fonte Oficial:** Sempre obtenha os arquivos do projeto diretamente do link oficial do GitHub. Nao confie em pastas ou arquivos compactados enviados por outras pessoas ou baixados de outros sites.
+
+2.  **Inspecione o Codigo:** Este projeto e 100% de codigo aberto. Voce pode (e deve) ler o conteudo dos arquivos `sysbot.ps1` e `run_admin.bat` para entender exatamente quais comandos serao executados no seu sistema. Transparencia e a maior seguranca.
+
+3.  **Desconfie de Versoes Modificadas:** Se alguem oferecer uma versao do SysBot com "funcionalidades secretas" ou "melhorias nao oficiais", desconfie. Pode ser uma isca para executar codigo malicioso.
+
+4.  **Avisos de Execucao do Windows:** Ao tentar executar o `run_admin.bat` pela primeira vez, o Windows pode exibir um aviso de seguranca (SmartScreen) porque o arquivo foi baixado da internet. Se voce baixou do link oficial, pode clicar em "Mais informacoes" e "Executar mesmo assim" com seguranca.
+
+---
+
 ## Funcionalidades Principais
 
 O SysBot e organizado em modulos, cada um com um proposito especifico:
@@ -26,7 +46,7 @@ O SysBot e organizado em modulos, cada um com um proposito especifico:
 
 ## Como Usar
 
-1.  Nao execute o `sysbot.ps1` diretamente.
+1.  Baixe os arquivos do repositorio oficial no GitHub.
 2.  Clique com o **botao direito** no arquivo `run_admin.bat`.
 3.  Selecione **"Executar como administrador"**.
 4.  O menu principal do SysBot sera exibido, e voce podera navegar pelas opcoes.
