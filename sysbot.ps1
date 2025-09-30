@@ -79,7 +79,20 @@ function Show-Menu {
 
     Write-Host ""
     Write-Host $line -ForegroundColor Cyan
-    
+
+    # Footer / Credits
+    if ($Title -eq "MENU PRINCIPAL") {
+        Write-Host "`n" -ForegroundColor DarkGray
+        Write-Host "    Desenvolvido por: " -NoNewline -ForegroundColor Cyan
+        Write-Host "MoacirJr10"  -ForegroundColor White
+        Write-Host "    Estudante:" -NoNewline -ForegroundColor Cyan
+        Write-Host " Engenharia de Computacao" -ForegroundColor Gray
+        Write-Host "    GitHub: " -NoNewline -ForegroundColor Cyan
+        Write-Host "github.com/MoacirJr10" -ForegroundColor White
+        Write-Host "    Sugestoes sao sempre bem-vindas!" -ForegroundColor Green
+        Write-Host "" -ForegroundColor DarkGray
+    }
+
     return Read-Host "`n  [>] Escolha uma opcao"
 }
 
