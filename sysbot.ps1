@@ -1,5 +1,3 @@
-# SysBot - Modernized by Gemini
-
 # --- Configuracoes Iniciais ---
 $ErrorActionPreference = "SilentlyContinue"
 $ProgressPreference = "SilentlyContinue"
@@ -42,7 +40,7 @@ function Show-Menu {
     )
     Clear-Host
     $width = 70
-    
+
     # ASCII Art Header
     Write-Host "" -ForegroundColor Green
     Write-Host '   _____ __         __   ____        __' -ForegroundColor Green
@@ -51,21 +49,6 @@ function Show-Menu {
     Write-Host ' ___/ / / / /  __/ /_ / /_/ / /_/ / /_' -ForegroundColor Green
     Write-Host '/____/_/ /_/\___/\__//_____/\____/\__/' -ForegroundColor Green
     Write-Host ""
-
-    # Footer / Credits
-    if ($Title -eq "MENU PRINCIPAL") {
-        Write-Host "`n" -ForegroundColor DarkGray
-        Write-Host "    Desenvolvido por: " -NoNewline -ForegroundColor Cyan
-        Write-Host "MoacirJr10" -ForegroundColor White
-        Write-Host "    Estudante:" -NoNewline -ForegroundColor Cyan
-        Write-Host " Engenharia de Computacao" -ForegroundColor  White
-        Write-Host "    GitHub: " -NoNewline -ForegroundColor Cyan
-        Write-Host "github.com/MoacirJr10" -ForegroundColor White
-        Write-Host "    Sugestoes sao sempre bem-vindas!" -ForegroundColor Green
-        Write-Host "" -ForegroundColor DarkGray
-    }
-
-
 
     # Status Box
     if ($Status) {
@@ -94,6 +77,19 @@ function Show-Menu {
 
     Write-Host ""
     Write-Host $line -ForegroundColor Cyan
+
+    # Footer / Credits
+    if ($Title -eq "MENU PRINCIPAL") {
+        Write-Host "" -ForegroundColor DarkGray
+        Write-Host "    Desenvolvido por: " -NoNewline -ForegroundColor Cyan
+        Write-Host "MoacirJr10" -ForegroundColor White
+        Write-Host "    Estudante:" -NoNewline -ForegroundColor Cyan
+        Write-Host "  Engenharia de Computacao"-ForegroundColor White
+        Write-Host "    GitHub: " -NoNewline -ForegroundColor Cyan
+        Write-Host "github.com/MoacirJr10" -ForegroundColor White
+        Write-Host "    Sugestoes sao sempre bem-vindas!" -ForegroundColor Green
+        Write-Host "" -ForegroundColor DarkGray
+    }
     
     return Read-Host "`n  [>] Escolha uma opcao"
 }
@@ -150,27 +146,6 @@ function Show-HelpScreen {
             Write-Host "    $line" -ForegroundColor Gray
         }
     }
-    Pausar
-}
-
-function Show-SecurityTips {
-    Write-Header -Title "DICAS DE SEGURANCA"
-    Write-Host "  [!] Nao confie cegamente! Verifique sempre a origem de qualquer software." -ForegroundColor Red
-    Write-Host ""
-    Write-Host "  [1] Baixe apenas da fonte oficial:" -ForegroundColor Yellow
-    Write-Host "      O SysBot deve ser baixado EXCLUSIVAMENTE do repositorio oficial no GitHub:" -ForegroundColor Gray
-    Write-Host "      https://github.com/MoacirJr10/SysBot (ou o link correto do seu repo)." -ForegroundColor Gray
-    Write-Host "      Evite sites de terceiros, foruns ou links nao verificados." -ForegroundColor Gray
-    Write-Host ""
-    Write-Host ""
-    Write-Host "  [2] Entenda o que o script faz:" -ForegroundColor Yellow
-    Write-Host "      Use as opcoes de AJUDA nos menus para entender cada funcao." -ForegroundColor Gray
-    Write-Host "      Um script com privilegios de administrador pode fazer grandes mudancas no sistema." -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  [3] Cuidado com Falsos Positivos:" -ForegroundColor Yellow
-    Write-Host "      Antivirus podem sinalizar o SysBot como ameaca (falso positivo) por ser um script." -ForegroundColor Gray
-    Write-Host "      Isso e normal para ferramentas de automacao. Verifique o hash para ter certeza." -ForegroundColor Gray
-    Write-Host ""
     Pausar
 }
 
@@ -347,7 +322,6 @@ do {
         "[7] Auditoria de Seguranca",
         "",
         "[8] AJUDA: O que cada menu faz?",
-        "[9] DICAS DE SEGURANCA",
         "[0] Sair do SysBot"
     )
     $mainChoice = Show-Menu -Title "MENU PRINCIPAL" -Options $mainMenuOptions -Status $systemStatus
@@ -467,7 +441,6 @@ do {
             } while ($true)
         }
         '8' { Show-HelpScreen -Title "AJUDA GERAL" -HelpLines @("[1] Manutencao do Sistema", "    Executa tarefas essenciais para manter o sistema saudavel.", "", "[2] Informacoes de Hardware", "    Mostra detalhes sobre os componentes do seu computador.", "", "[3] Diagnostico de Rede", "    Ferramentas para verificar sua conexao com a internet.", "", "[4] Ferramentas de Limpeza", "    Libera espaco em disco removendo arquivos desnecessarios.", "", "[5] Otimizacao Avancada", "    Executa acoes para melhorar o desempenho do sistema.", "", "[6] Relatorios e Diagnosticos", "    Gera relatorios completos sobre o estado do seu sistema.", "", "[7] Auditoria de Seguranca", "    Verifica configuracoes basicas de seguranca do seu PC.") }
-        '9' { Show-SecurityTips }
         '0' { Write-Host "`nEncerrando SysBot. Ate logo!" -ForegroundColor Green; Stop-Transcript; Start-Sleep -Seconds 1; exit }
         default { Write-Host "`n[-] Opcao invalida. Tente novamente." -ForegroundColor Red; Pausar }
     }
