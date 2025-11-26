@@ -1,12 +1,7 @@
-# SysBot - Modernized by Gemini
-
-# --- Configuracoes Iniciais e Importacao ---
+# --- Configuracoes Iniciais ---
 $ErrorActionPreference = "SilentlyContinue"
 $ProgressPreference = "SilentlyContinue"
 Set-StrictMode -Version Latest
-
-# Carrega todas as funcoes de UI, animacao e utilidades do arquivo utils.ps1
-. .\utils.ps1
 
 # --- Gerenciamento de Configuracao (config.json) ---
 $configPath = "./config.json"
@@ -23,6 +18,134 @@ $config = Get-Content $configPath | ConvertFrom-Json
 if (-not (Test-Path -Path "./logs")) { New-Item -ItemType Directory -Path "./logs" | Out-Null }
 $logFile = ".\logs\SysBot-Log_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').txt"
 Start-Transcript -Path $logFile -Append
+
+# --- Funcoes de UI Core ---
+
+function Test-IsAdmin {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Pausar {
+    Write-Host "`n Pressione qualquer tecla para voltar ao menu..." -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
+function Show-Menu {
+    param(
+        [string]$Title,
+        [array]$Options,
+        [hashtable]$Status
+    )
+    Clear-Host
+    $width = 70
+    
+    # ASCII Art Header
+    Write-Host "" -ForegroundColor Green
+    Write-Host '   _____ __         __   ____        __' -ForegroundColor Green
+    Write-Host '  / ___// /_  ___  / /_ / __ )____  / /_' -ForegroundColor Green
+    Write-Host '  \__ \/ __ \/ _ \/ __// __  / __ \/ __/' -ForegroundColor Green
+    Write-Host ' ___/ / / / /  __/ /_ / /_/ / /_/ / /_' -ForegroundColor Green
+    Write-Host '/____/_/ /_/\___/\__//_____/\____/\__/' -ForegroundColor Green
+    Write-Host ""
+
+    # Status Box
+    if ($Status) {
+        $statusLine = "Status do Sistema: $($Status.Text)".PadLeft(((($width) - "Status do Sistema: $($Status.Text)".Length) / 2) + "Status do Sistema: $($Status.Text)".Length).PadRight($width)
+        Write-Host $statusLine -ForegroundColor $Status.Color -BackgroundColor DarkGray
+        if ($Status.Reasons) {
+            foreach ($reason in $Status.Reasons) {
+                Write-Host "- $reason".PadLeft(10) -ForegroundColor Gray
+            }
+        }
+        Write-Host ""
+    }
+
+    # Menu Box
+    $line = "+-" + ("-" * $width) + "-+"
+    $paddedTitle = $Title.PadLeft(((($width - 2) - $Title.Length) / 2) + $Title.Length).PadRight($width - 2)
+
+    Write-Host $line -ForegroundColor Cyan
+    Write-Host "| $($paddedTitle) |" -ForegroundColor Green
+    Write-Host $line -ForegroundColor Cyan
+    Write-Host ""
+
+    foreach ($option in $Options) {
+        Write-Host "  $option" -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Write-Host $line -ForegroundColor Cyan
+
+    # Footer / Credits
+    if ($Title -eq "MENU PRINCIPAL") {
+        Write-Host "" -ForegroundColor DarkGray
+        Write-Host "    Desenvolvido por: " -NoNewline -ForegroundColor Cyan
+        Write-Host "MoacirJr10" -ForegroundColor White
+        Write-Host "    Estudante:" -NoNewline -ForegroundColor Cyan
+        Write-Host "  Engenharia de Computacao" -ForegroundColor White
+        Write-Host "    GitHub: " -NoNewline -ForegroundColor Cyan
+        Write-Host "github.com/MoacirJr10" -ForegroundColor White
+        Write-Host "    Sugestoes sao sempre bem-vindas!" -ForegroundColor Green
+        Write-Host "" -ForegroundColor DarkGray
+    }
+    
+    return Read-Host "`n  [>] Escolha uma opcao"
+}
+
+function Execute-Action {
+    param(
+        [string]$Title,
+        [scriptblock]$Action,
+        [switch]$IsLongRunning
+    )
+    Clear-Host
+    $width = 70
+    $line = "+-" + ("-" * $width) + "-+"
+    $paddedTitle = "EXECUTANDO: $Title".PadLeft(((($width - 2) - "EXECUTANDO: $Title".Length) / 2) + "EXECUTANDO: $Title".Length).PadRight($width - 2)
+
+    Write-Host $line -ForegroundColor Magenta
+    Write-Host "| $($paddedTitle) |" -ForegroundColor White
+    Write-Host $line -ForegroundColor Magenta
+    Write-Host ""
+
+    if ($IsLongRunning) {
+        Write-Host "[*] Esta operacao pode levar varios minutos. Por favor, aguarde..." -ForegroundColor Cyan
+        Write-Host ""
+    }
+
+    try {
+        Invoke-Command -ScriptBlock $Action
+        Write-Host "`n[+] Acao concluida com sucesso." -ForegroundColor Green
+    } catch {
+        Write-Host "`n[-] Ocorreu um erro durante a execucao." -ForegroundColor Red
+        Write-Host "    Mensagem: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    Pausar
+}
+
+function Show-HelpScreen {
+    param([string]$Title, [array]$HelpLines)
+    Clear-Host
+    $width = 70
+    $line = "+-" + ("-" * $width) + "-+"
+    $paddedTitle = $Title.PadLeft(((($width - 2) - $Title.Length) / 2) + $Title.Length).PadRight($width - 2)
+
+    Write-Host $line -ForegroundColor Cyan
+    Write-Host "| $($paddedTitle) |" -ForegroundColor Green
+    Write-Host $line -ForegroundColor Cyan
+    Write-Host ""
+
+    foreach($line in $HelpLines) {
+        if ($line.StartsWith("[")) {
+            Write-Host "  $line" -ForegroundColor Yellow
+        } else {
+            Write-Host "    $line" -ForegroundColor Gray
+        }
+    }
+    Pausar
+}
 
 
 # --- FUNCOES DE LOGICA (BACKEND) ---
@@ -179,6 +302,37 @@ function Listar-ProgramasInicializacao {
     Get-CimInstance -ClassName Win32_StartupCommand | Select-Object Name, Command, User, Location | Format-Table -AutoSize
 }
 
+function Manage-DevTool {
+    param(
+        [string]$ToolName,
+        [string]$WingetId,
+        [string]$ExecutableName,
+        [string]$VersionArgument,
+        [switch]$NoInstall
+    )
+    
+    $exePath = Get-Command $ExecutableName -ErrorAction SilentlyContinue
+    if ($exePath) {
+        $version = & $exePath.Source $VersionArgument
+        Write-Host "[+] $ToolName ja esta instalado." -ForegroundColor Green
+        Write-Host "    Versao: $version" -ForegroundColor Cyan
+        if (-not $NoInstall) {
+            $choice = Read-Host "`n[?] Deseja reinstalar/atualizar? (s/n)"
+            if ($choice -eq 's') {
+                Execute-Action -Title "INSTALANDO/ATUALIZANDO $ToolName" -Action { winget install -e --id $WingetId } -IsLongRunning
+            }
+        }
+    } else {
+        Write-Host "[!] $ToolName nao encontrado." -ForegroundColor Yellow
+        if (-not $NoInstall) {
+            $choice = Read-Host "`n[?] Deseja instalar agora? (s/n)"
+            if ($choice -eq 's') {
+                Execute-Action -Title "INSTALANDO $ToolName" -Action { winget install -e --id $WingetId } -IsLongRunning
+            }
+        }
+    }
+}
+
 
 # --- LOOP PRINCIPAL ---
 do {
@@ -327,26 +481,23 @@ do {
         }
         '8' { # Gerenciador de Desenvolvimento
             do {
-                $subOptions = @("--- INSTALAR FERRAMENTAS ---", "[1] Instalar Python 3", "[2] Instalar Java (Oracle JDK 21)", "[3] Instalar Git (Controle de Versao)", "[4] Instalar Visual Studio Code", "[5] Instalar NodeJS (LTS)", "[6] Instalar Docker Desktop", "[7] Instalar PostgreSQL", "[8] Instalar MongoDB", "[9] Instalar .NET SDK", "[10] Instalar Go (Golang)", "[11] Instalar Rust", "[12] Instalar Postman", "", "--- VERIFICAR VERSOES ---", "[v1] Verificar versao do Python", "[v2] Verificar versao do Java", "[v3] Verificar versao do Git", "", "[h] AJUDA: O que estas funcoes fazem?", "[0] Voltar ao Menu Principal")
+                $subOptions = @("--- INSTALAR FERRAMENTAS ---", "[1] Gerenciar Python 3", "[2] Gerenciar Java (JDK)", "[3] Gerenciar Git", "[4] Gerenciar Visual Studio Code", "[5] Gerenciar NodeJS (LTS)", "", "--- VERIFICAR VERSOES ---", "[v1] Verificar todas as versoes", "", "[h] AJUDA: O que estas funcoes fazem?", "[0] Voltar ao Menu Principal")
                 $subChoice = Show-Menu -Title "GERENCIADOR DE DESENVOLVIMENTO" -Options $subOptions
                 if ($subChoice -eq '0') { break }
                 switch ($subChoice) {
-                    '1' { Execute-Action -Title "INSTALANDO PYTHON 3" -Action { winget install -e --id Python.Python.3 } -IsLongRunning }
-                    '2' { Execute-Action -Title "INSTALANDO JAVA JDK 21" -Action { winget install -e --id Oracle.JDK.21 } -IsLongRunning }
-                    '3' { Execute-Action -Title "INSTALANDO GIT" -Action { winget install -e --id Git.Git } -IsLongRunning }
-                    '4' { Execute-Action -Title "INSTALANDO VS CODE" -Action { winget install -e --id Microsoft.VisualStudioCode } -IsLongRunning }
-                    '5' { Execute-Action -Title "INSTALANDO NODE.JS" -Action { winget install -e --id OpenJS.NodeJS.LTS } -IsLongRunning }
-                    '6' { Execute-Action -Title "INSTALANDO DOCKER DESKTOP" -Action { winget install -e --id Docker.DockerDesktop } -IsLongRunning }
-                    '7' { Execute-Action -Title "INSTALANDO POSTGRESQL" -Action { winget install -e --id PostgreSQL.PostgreSQL } -IsLongRunning }
-                    '8' { Execute-Action -Title "INSTALANDO MONGODB" -Action { winget install -e --id MongoDB.Server } -IsLongRunning }
-                    '9' { Execute-Action -Title "INSTALANDO .NET SDK" -Action { winget install -e --id Microsoft.DotNet.SDK.8 } -IsLongRunning }
-                    '10' { Execute-Action -Title "INSTALANDO GO (GOLANG)" -Action { winget install -e --id Go.Go } -IsLongRunning }
-                    '11' { Execute-Action -Title "INSTALANDO RUST" -Action { winget install -e --id Rust.Rustup } -IsLongRunning }
-                    '12' { Execute-Action -Title "INSTALANDO POSTMAN" -Action { winget install -e --id Postman.Postman } -IsLongRunning }
-                    'v1' { Execute-Action -Title "VERIFICANDO VERSAO DO PYTHON" -Action { python --version } }
-                    'v2' { Execute-Action -Title "VERIFICANDO VERSAO DO JAVA" -Action { java -version } }
-                    'v3' { Execute-Action -Title "VERIFICANDO VERSAO DO GIT" -Action { git --version } }
-                    'h' { Show-HelpScreen -Title "AJUDA: DEV TOOLS" -HelpLines @("[1] Instalar Python 3", "O que faz: Instala a versao mais recente do Python 3.", "Como faz: Usa o winget para baixar e instalar o pacote 'Python.Python.3' de forma segura.", "", "[2] Instalar Java (JDK 21)", "O que faz: Instala o Kit de Desenvolvimento Java da Oracle, versao 21 (LTS).", "Como faz: Usa o winget para baixar e instalar o pacote 'Oracle.JDK.21'.", "", "[3] Instalar Git", "O que faz: Instala o Git, o sistema de controle de versao mais popular do mundo.", "Como faz: Usa o winget para baixar e instalar o pacote 'Git.Git'.", "", "[4] Instalar Visual Studio Code", "O que faz: Instala o editor de codigo-fonte leve e poderoso da Microsoft.", "Como faz: Usa o winget para baixar e instalar o pacote 'Microsoft.VisualStudioCode'.", "", "[5] Instalar NodeJS (LTS)", "O que faz: Instala a versao de suporte de longo prazo (LTS) do Node.js.", "Como faz: Usa o winget para baixar e instalar o pacote 'OpenJS.NodeJS.LTS'.", "", "[6] Instalar Docker Desktop", "O que faz: Instala a plataforma de container Docker Desktop.", "Como faz: Usa o winget para baixar e instalar o pacote 'Docker.DockerDesktop'.", "", "[7] Instalar PostgreSQL", "O que faz: Instala o banco de dados relacional PostgreSQL.", "Como faz: Usa o winget para baixar e instalar o pacote 'PostgreSQL.PostgreSQL'.", "", "[8] Instalar MongoDB", "O que faz: Instala o banco de dados NoSQL MongoDB Community Server.", "Como faz: Usa o winget para baixar e instalar o pacote 'MongoDB.Server'.", "", "[9] Instalar .NET SDK", "O que faz: Instala o kit de desenvolvimento para a plataforma .NET da Microsoft.", "Como faz: Usa o winget para baixar e instalar o pacote 'Microsoft.DotNet.SDK.8'.", "", "[10] Instalar Go (Golang)", "O que faz: Instala a linguagem de programacao Go, do Google.", "Como faz: Usa o winget para baixar e instalar o pacote 'Go.Go'.", "", "[11] Instalar Rust", "O que faz: Instala a linguagem de programacao Rust, focada em seguranca e performance.", "Como faz: Usa o winget para baixar e instalar o pacote 'Rust.Rustup'.", "", "[12] Instalar Postman", "O que faz: Instala a ferramenta Postman para teste e desenvolvimento de APIs.", "Como faz: Usa o winget para baixar e instalar o pacote 'Postman.Postman'.") }
+                    '1' { Manage-DevTool -ToolName "Python" -WingetId "Python.Python.3" -ExecutableName "python.exe" -VersionArgument "--version" }
+                    '2' { Manage-DevTool -ToolName "Java" -WingetId "Oracle.JDK.21" -ExecutableName "java.exe" -VersionArgument "-version" }
+                    '3' { Manage-DevTool -ToolName "Git" -WingetId "Git.Git" -ExecutableName "git.exe" -VersionArgument "--version" }
+                    '4' { Manage-DevTool -ToolName "Visual Studio Code" -WingetId "Microsoft.VisualStudioCode" -ExecutableName "code.exe" -VersionArgument "--version" }
+                    '5' { Manage-DevTool -ToolName "NodeJS" -WingetId "OpenJS.NodeJS.LTS" -ExecutableName "node.exe" -VersionArgument "--version" }
+                    'v1' { 
+                        Execute-Action -Title "VERIFICANDO VERSOES" -Action {
+                            Manage-DevTool -ToolName "Python" -ExecutableName "python.exe" -VersionArgument "--version" -NoInstall
+                            Manage-DevTool -ToolName "Java" -ExecutableName "java.exe" -VersionArgument "-version" -NoInstall
+                            Manage-DevTool -ToolName "Git" -ExecutableName "git.exe" -VersionArgument "--version" -NoInstall
+                        }
+                    }
+                    'h' { Show-HelpScreen -Title "AJUDA: DEV TOOLS" -HelpLines @("[1-5] Gerenciar Ferramentas", "O que faz: Verifica se uma ferramenta (Python, Java, etc.) esta instalada e mostra sua versao.", "Como faz: Se estiver instalada, pergunta se voce deseja reinstalar/atualizar. Se nao, pergunta se deseja instalar via winget.", "", "[v1] Verificar todas as versoes", "O que faz: Executa uma verificacao rapida de versao para Python, Java e Git.", "Como faz: Roda os comandos de versao de cada ferramenta e exibe o resultado.") }
                     default { if ($subChoice -ne '0') {Write-Host "[-] Opcao invalida" -ForegroundColor Red; Pausar} }
                 }
             } while ($true)

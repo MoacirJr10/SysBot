@@ -51,21 +51,6 @@ O SysBot e organizado em modulos, cada um com um proposito especifico:
 3.  Selecione **"Executar como administrador"**.
 4.  O menu principal do SysBot sera exibido, e voce podera navegar pelas opcoes.
 
-## Customizacao (config.json)
-
-O SysBot pode ser customizado atraves do arquivo `config.json`. Se este arquivo nao existir, ele sera criado automaticamente na primeira execucao.
-
-As configuracoes padrao sao:
-
-```json
-{
-  "daysForOldLogs": 30,
-  "lowDiskSpaceThreshold": 15
-}
-```
-
-- `daysForOldLogs`: Define a idade (em dias) a partir da qual os arquivos de log na pasta de limpeza serao considerados "antigos" e removidos.
-- `lowDiskSpaceThreshold`: Define o percentual minimo de espaco livre em disco antes que o SysBot exiba um alerta de "ATENCAO NECESSARIA".
 
 ## Compatibilidade
 
