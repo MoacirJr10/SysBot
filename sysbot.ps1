@@ -369,9 +369,11 @@ do {
                     '4' { Execute-Action -Title "VERIFICANDO DRIVERS" -Action { Verificar-Drivers } }
                     '5' { Execute-Action -Title "ATUALIZANDO PROGRAMAS (WINGET)" -Action { 
                             if (Get-Command winget -ErrorAction SilentlyContinue) {
-                                Write-Host "[*] Passo 1 de 2: Verificando atualizacoes para o proprio Winget..." -ForegroundColor Cyan
+                                Write-Host "[*] Passo 1 de 3: Atualizando fontes do Winget..." -ForegroundColor Cyan
+                                winget source update
+                                Write-Host "`n[*] Passo 2 de 3: Verificando atualizacoes para o proprio Winget..." -ForegroundColor Cyan
                                 winget upgrade Microsoft.AppInstaller --accept-package-agreements --accept-source-agreements
-                                Write-Host "`n[*] Passo 2 de 2: Procurando atualizacoes para os outros programas..." -ForegroundColor Cyan
+                                Write-Host "`n[*] Passo 3 de 3: Procurando atualizacoes para os outros programas..." -ForegroundColor Cyan
                                 winget upgrade --all --accept-package-agreements --accept-source-agreements
                             } else {
                                 Write-Host "[!] Winget nao encontrado. Instale o App Installer da Microsoft Store." -ForegroundColor Yellow

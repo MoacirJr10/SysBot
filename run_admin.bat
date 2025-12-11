@@ -1,4 +1,4 @@
-@echo off
+ @echo off
 title SYSBOT - MODO DE DEPURACAO
 chcp 65001 >nul
 
