@@ -1,5 +1,6 @@
 # --- Configuracoes Iniciais ---
-$ErrorActionPreference = "SilentlyContinue"
+# SEGURANCA: Alterado para 'Continue' para que erros criticos sejam visiveis ao usuario
+$ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
 Set-StrictMode -Version Latest
 
@@ -150,6 +151,21 @@ function Show-HelpScreen {
 
 # --- FUNCOES DE LOGICA (BACKEND) ---
 
+function Criar-PontoRestauracao {
+    Write-Host "[*] Tentando criar um Ponto de Restauracao do Sistema..." -ForegroundColor Yellow
+    try {
+        # Verifica se a restauracao do sistema esta habilitada
+        $restoreEnabled = Get-ComputerRestorePoint -ErrorAction SilentlyContinue
+        Checkpoint-Computer -Description "SysBot_Backup_$(Get-Date -Format 'yyyyMMdd_HHmm')" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+        Write-Host "[+] Ponto de restauracao criado com sucesso!" -ForegroundColor Green
+    } catch {
+        Write-Host "[!] Nao foi possivel criar o ponto de restauracao." -ForegroundColor Yellow
+        Write-Host "    Motivo: $($_.Exception.Message)" -ForegroundColor Gray
+        Write-Host "    Dica: Verifique se a 'Protecao do Sistema' esta ativada no Windows." -ForegroundColor Gray
+        Start-Sleep -Seconds 2
+    }
+}
+
 function Get-SystemStatus {
     $status = @{ Text = "[SAUDAVEL]"; Color = "Green"; Reasons = @() }
     $reasons = @()
@@ -182,7 +198,10 @@ function Verificar-Atualizacoes {
     if ($updates.Count -eq 0) { Write-Host "[+] Sistema atualizado!" -ForegroundColor Green }
     else { 
         Write-Host "[*] $($updates.Count) atualizacoes encontradas" -ForegroundColor Yellow
-        if ($InstallUpdates) { Install-WindowsUpdate -AcceptAll -AutoReboot:$false }
+        if ($InstallUpdates) {
+            Criar-PontoRestauracao
+            Install-WindowsUpdate -AcceptAll -AutoReboot:$false
+        }
     }
 }
 
@@ -219,34 +238,61 @@ function Show-HardwareSummary {
 function Limpeza-Avancada {
     param([switch]$IncludeTempFiles, [switch]$IncludePrefetch, [switch]$IncludeThumbnails, [switch]$IncludeRecentFiles, [switch]$IncludeLogs)
     $totalCleaned = 0
+
+    # SEGURANCA: Funcao auxiliar para deletar com seguranca
+    function Remove-Safe {
+        param($Path)
+        # Verifica se o caminho existe e nao e vazio ou raiz
+        if ([string]::IsNullOrWhiteSpace($Path) -or $Path.Length -lt 4 -or -not (Test-Path $Path)) { return }
+        try {
+            $items = Get-ChildItem $Path -Recurse -Force -ErrorAction SilentlyContinue
+            $size = ($items | Measure-Object -Property Length -Sum).Sum
+            # Remove apenas o conteudo, mantendo a pasta pai se possivel, ou usa wildcard
+            Remove-Item "$Path\*" -Recurse -Force -ErrorAction SilentlyContinue
+            return $size
+        } catch { return 0 }
+    }
+
     if ($IncludeTempFiles) {
         Write-Host "[*] Limpando arquivos temporarios..." -ForegroundColor Yellow
-        $tempPaths = @("$env:TEMP\*", "$env:WINDIR\Temp\*", "$env:LOCALAPPDATA\Temp\*")
+        $tempPaths = @("$env:TEMP", "$env:WINDIR\Temp", "$env:LOCALAPPDATA\Temp")
         foreach ($path in $tempPaths) {
-            try { $items = Get-ChildItem $path -Recurse -Force -ErrorAction SilentlyContinue; $size = ($items | Measure-Object -Property Length -Sum).Sum; Remove-Item $path -Recurse -Force -ErrorAction SilentlyContinue; $totalCleaned += $size } catch {}
+            $totalCleaned += Remove-Safe -Path $path
         }
     }
     if ($IncludePrefetch) {
         Write-Host "[*] Limpando cache de pre-carregamento..." -ForegroundColor Yellow
-        $prefetchSize = (Get-ChildItem "$env:WINDIR\Prefetch" -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-        Remove-Item "$env:WINDIR\Prefetch\*" -Force -ErrorAction SilentlyContinue; $totalCleaned += $prefetchSize
+        $totalCleaned += Remove-Safe -Path "$env:WINDIR\Prefetch"
     }
     if ($IncludeThumbnails) {
         Write-Host "[*] Limpando cache de miniaturas..." -ForegroundColor Yellow
-        $thumbPath = "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db"
-        $thumbSize = (Get-ChildItem $thumbPath -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-        Remove-Item $thumbPath -Force -ErrorAction SilentlyContinue; $totalCleaned += $thumbSize
+        # Thumbnails sao arquivos especificos, nao pasta inteira
+        $thumbPath = "$env:LOCALAPPDATA\Microsoft\Windows\Explorer"
+        if (Test-Path $thumbPath) {
+            $thumbs = Get-ChildItem "$thumbPath\thumbcache_*.db" -ErrorAction SilentlyContinue
+            if ($thumbs) {
+                $size = ($thumbs | Measure-Object -Property Length -Sum).Sum
+                $thumbs | Remove-Item -Force -ErrorAction SilentlyContinue
+                $totalCleaned += $size
+            }
+        }
     }
     if ($IncludeRecentFiles) {
         Write-Host "[*] Limpando historico de documentos recentes..." -ForegroundColor Yellow
-        Remove-Item "$env:APPDATA\Microsoft\Windows\Recent\*" -Force -ErrorAction SilentlyContinue
+        $totalCleaned += Remove-Safe -Path "$env:APPDATA\Microsoft\Windows\Recent"
     }
     if ($IncludeLogs) {
         Write-Host "[*] Limpando logs antigos (mais de $($config.daysForOldLogs) dias)..." -ForegroundColor Yellow
-        $logPaths = @("$env:WINDIR\Logs\*", "$env:WINDIR\System32\LogFiles\*")
+        $logPaths = @("$env:WINDIR\Logs", "$env:WINDIR\System32\LogFiles")
         foreach ($logPath in $logPaths) {
-            $oldLogs = Get-ChildItem $logPath -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$config.daysForOldLogs) }
-            $logSize = ($oldLogs | Measure-Object -Property Length -Sum).Sum; $oldLogs | Remove-Item -Force -ErrorAction SilentlyContinue; $totalCleaned += $logSize
+            if (Test-Path $logPath) {
+                $oldLogs = Get-ChildItem "$logPath\*" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$config.daysForOldLogs) }
+                if ($oldLogs) {
+                    $logSize = ($oldLogs | Measure-Object -Property Length -Sum).Sum
+                    $oldLogs | Remove-Item -Force -ErrorAction SilentlyContinue
+                    $totalCleaned += $logSize
+                }
+            }
         }
     }
     $cleanedMB = [math]::Round($totalCleaned / 1MB, 2)
@@ -369,12 +415,47 @@ do {
                     '4' { Execute-Action -Title "VERIFICANDO DRIVERS" -Action { Verificar-Drivers } }
                     '5' { Execute-Action -Title "ATUALIZANDO PROGRAMAS (WINGET)" -Action { 
                             if (Get-Command winget -ErrorAction SilentlyContinue) {
-                                Write-Host "[*] Passo 1 de 3: Atualizando fontes do Winget..." -ForegroundColor Cyan
+                                # Tenta corrigir problemas de configuração
+                                Write-Host "[*] Passo 1 de 4: Verificando integridade das fontes do Winget..." -ForegroundColor Cyan
+                                try {
+                                    winget source reset --force | Out-Null
+                                    Write-Host "    > Fontes resetadas para o padrão." -ForegroundColor Gray
+                                } catch {
+                                    Write-Host "    > Não foi possível resetar as fontes (pode não ser necessário)." -ForegroundColor DarkGray
+                                }
+
+                                Write-Host "`n[*] Passo 2 de 4: Atualizando catálogo de softwares..." -ForegroundColor Cyan
                                 winget source update
-                                Write-Host "`n[*] Passo 2 de 3: Verificando atualizacoes para o proprio Winget..." -ForegroundColor Cyan
-                                winget upgrade Microsoft.AppInstaller --accept-package-agreements --accept-source-agreements
-                                Write-Host "`n[*] Passo 3 de 3: Procurando atualizacoes para os outros programas..." -ForegroundColor Cyan
-                                winget upgrade --all --accept-package-agreements --accept-source-agreements
+
+                                Write-Host "`n[*] Passo 3 de 4: Buscando atualizações..." -ForegroundColor Cyan
+                                [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+                                # Comando mais limpo para listar apenas o que tem atualizacao
+                                $upgrades = winget list --upgrade-available --accept-source-agreements 2>&1
+
+                                if (-not $upgrades) {
+                                    Write-Host "[!] O Winget nao retornou nenhuma informacao. Pode haver um erro de conexao ou configuracao." -ForegroundColor Red
+                                } else {
+                                    $upgrades | Out-Host
+                                    $outputString = $upgrades | Out-String
+
+                                    if ($outputString -match "No installed package found" -or $outputString -match "Nenhum pacote instalado corresponde") {
+                                        Write-Host "`n[+] Todos os programas estao atualizados!" -ForegroundColor Green
+                                    } elseif ($outputString -match "Name" -or $outputString -match "Nome" -or $outputString -match "Id") {
+                                        Write-Host "`n[?] Deseja instalar todas as atualizacoes listadas acima? (s/n)" -ForegroundColor Yellow
+                                        $resp = Read-Host
+                                        if ($resp -eq 's' -or $resp -eq 'S') {
+                                            Criar-PontoRestauracao
+                                            Write-Host "`n[*] Passo 4 de 4: Instalando atualizacoes..." -ForegroundColor Cyan
+                                            winget upgrade --all --include-unknown --accept-package-agreements --accept-source-agreements
+                                            Write-Host "`n[+] Processo de atualizacao finalizado." -ForegroundColor Green
+                                        } else {
+                                            Write-Host "`n[!] Atualizacao cancelada pelo usuario." -ForegroundColor Yellow
+                                        }
+                                    } else {
+                                        Write-Host "`n[!] Nao foi possivel determinar se ha atualizacoes." -ForegroundColor Yellow
+                                    }
+                                }
                             } else {
                                 Write-Host "[!] Winget nao encontrado. Instale o App Installer da Microsoft Store." -ForegroundColor Yellow
                             }
