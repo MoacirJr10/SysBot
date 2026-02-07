@@ -1,0 +1,26 @@
+# --- Arquivos de Sistema e Logs ---
+logs/
+*.log
+*.tmp
+
+# --- Configuracoes do Usuario ---
+# Ignorar config.json para que cada usuario tenha sua propria configuracao
+config.json
+
+# --- Relatorios e Saidas de Dados ---
+# Bloqueia o envio de relatorios caso sejam salvos na pasta do projeto
+*.html
+*.csv
+*.txt
+*.xml
+
+# --- Dumps de Memoria ou Sistema ---
+SysBot_Dump_*
+*.dmp
+
+# --- Arquivos de IDE e Sistema Operacional ---
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
