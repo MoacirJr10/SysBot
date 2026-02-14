@@ -44,11 +44,12 @@ function Show-Menu {
     
     # ASCII Art Header
     Write-Host "" -ForegroundColor Green
-    Write-Host '   _____ __         __   ____        __' -ForegroundColor Green
-    Write-Host '  / ___// /_  ___  / /_ / __ )____  / /_' -ForegroundColor Green
-    Write-Host '  \__ \/ __ \/ _ \/ __// __  / __ \/ __/' -ForegroundColor Green
-    Write-Host ' ___/ / / / /  __/ /_ / /_/ / /_/ / /_' -ForegroundColor Green
-    Write-Host '/____/_/ /_/\___/\__//_____/\____/\__/' -ForegroundColor Green
+    Write-Host '   _____            ____        __ ' -ForegroundColor Green
+    Write-Host '  / ___/__  _______/ __ )____  / /_' -ForegroundColor Green
+    Write-Host '  \__ \/ / / / ___/ __  / __ \/ __/' -ForegroundColor Green
+    Write-Host ' ___/ / /_/ (__  ) /_/ / /_/ / /_  ' -ForegroundColor Green
+    Write-Host '/____/\__, /____/_____/\____/\__/  ' -ForegroundColor Green
+    Write-Host '     /____/                        ' -ForegroundColor Green
     Write-Host ""
 
     # Status Box
