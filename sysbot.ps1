@@ -1,4 +1,6 @@
 # --- Configuracoes Iniciais ---
+# Ajusta o tamanho da janela para caber o desenho e o menu lado a lado
+mode con cols=170 lines=60
 # SEGURANCA: Alterado para 'Continue' para que erros criticos sejam visiveis ao usuario
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
@@ -40,57 +42,196 @@ function Show-Menu {
         [hashtable]$Status
     )
     Clear-Host
-    $width = 70
-    
-    # ASCII Art Header
-    Write-Host "" -ForegroundColor Green
-    Write-Host '   _____            ____        __ ' -ForegroundColor Green
-    Write-Host '  / ___/__  _______/ __ )____  / /_' -ForegroundColor Green
-    Write-Host '  \__ \/ / / / ___/ __  / __ \/ __/' -ForegroundColor Green
-    Write-Host ' ___/ / /_/ (__  ) /_/ / /_/ / /_  ' -ForegroundColor Green
-    Write-Host '/____/\__, /____/_____/\____/\__/  ' -ForegroundColor Green
-    Write-Host '     /____/                        ' -ForegroundColor Green
-    Write-Host ""
 
-    # Status Box
-    if ($Status) {
-        $statusLine = "Status do Sistema: $($Status.Text)".PadLeft(((($width) - "Status do Sistema: $($Status.Text)".Length) / 2) + "Status do Sistema: $($Status.Text)".Length).PadRight($width)
-        Write-Host $statusLine -ForegroundColor $Status.Color -BackgroundColor DarkGray
-        if ($Status.Reasons) {
-            foreach ($reason in $Status.Reasons) {
-                Write-Host "- $reason".PadLeft(10) -ForegroundColor Gray
+    # ASCII Art Header (Definido aqui, mas usado apenas no Menu Principal)
+    $art = @'
+#-******************************************************************************************:
+#=%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#::                       --##%%%%%%%%%%%%%%%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%%%%%%%%%%%%%#...    .    .    ..              :=#%%%%%%%%%%%%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%%%%%%%%%%#+                                        +%%%%%%%%%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%%%%%%%%%+               :=-  .--.                    :%%%%%%%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%%%%%%%+  ::.  ::.%%%%%%%%%%%%**%%%%%%%= :-.  ::.  +--- %%%%%%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%*+.=          %%%%%%%%%##%%%%%##=%%%%%%-#.               -#%%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%==%*      =#%%%%%%%%%##%%%:%% **%%%%%%%%%%%+               *%%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%%%#       +%%%-=%%%%%# .%%%%%%%:#%%%%%%+*%%%%%%.          -  -%%%%%%%%%%%%%:
+#=%%%%%%%%%%%%%%%#-      :%%%% +%%%%%+=% ##%%%%%.*%%%%%% :%%%%%%%:           -  +%%%%%%%%%%%:
+#=%%%%%%%%%%%%%::*     -%%%%%-=%%%%*:#%% %%%%%%+=.%%%%%%% +%%%%%%%%        ..    *%%%%%%%%%%:
+#=%%%%%%%%%%%%# .     .%%%%%.%%%%#  %%%%  %%%%%== *%%%%%%* %%%%%-%%+          --  :++++  +%%:
+#=%%%%%%%%%%%%%*  *   %%%%%+*%%%%-*%%%%%% :%%=%==% %%%%%%= %%%%%+=%%%            - *%%%%%%%%:
+#=%%%%%%%%%%%%# -%+  #+%%%%+#%%%+*%%%%%%%.-%%%%++% +%%%%%%#*%%%%#.*%%+        .*:+  %%%%%%%%:
+#=%%%%%%%%%%%*   =  %+-%%%. =++- %%%%%%%%- #%%- -    *#%%%#:%%%%%. %%%          :   +%%%##%%:
+#=%%%%%%%%%%+=#+=:==*.#%# :-%% :+*%%%%%%%# #+.  %%* %%#  %#-%%%%%# #%%  ::    #%#  . %%%%%%%:
+#=%%%%%%%%%%#      %-:-#:=+=%= %%%%%%%%%%%#:% # %%% +%%%%   #%%%%% +%%            -  %%%%%%%:
+#=%%%%%%%%%%  .   # .-=  # %% %%%%%%%%%%%%%-:%% %%%%.:%%%%* =%%%%%% %%+              +%%%%%%:
+#=%%%%%%%%+:+    +%.%%%%%# -.%%%%%%%%%%%%%%%-#% %%%%%*#%%%%-+%%%%%% %:%:  =          -%%%%%%:
+#=%%%%%%%=       ---%*:%%* -*%%%%%%%%%%%%%%%* * %%%%%+=%%%%* #%%%%%+ %*               %%%%%%:
+#=%%%%%%  =      - -%.+%#  :   %%%%%%%%%%%%%%     #%%%.*%%%% *%%%%%= %+              %%%%%%%:
+#=%%%%%:     .   ..%+.-#%%#=#%%%%%%%%%%%%%%%%%%%%%%  +# =%%+# =%%%%+ -          %%.  %%%%%%%:
+#=%%%%+.          ##   %   ## %%%%%%%%%%%%%%%     #%%*=% :#=#+ %%%                    %%%%%%:
+#=%%%*    +       #  .%-   %.  %%%%%%%%%%%%%    %%  %%+ #:--#%.++             %     :++.+#%%:
+#=%%*    +         . %-        %%%%%%%%%%%%=    -    %%+ %+ #%%                       %%%%%%:
+#=%%                %%:     . .%%%%%%%%%%%# -        %%# :%%%%                        #%%%%%:
+#=%%#%*.*:        + %%=#-     %%%%%%%%%%%%%.=       +%%%.=%%%*           -          + *%%%%%:
+#=%%%%%           =:%%%  --  %%%%%%%%%%%%%%==    =  %%%% :%%%           +: .          -%%%%%:
+#=%%%%%:         =%%%%%%+=+*%%%%%%%%%%%%%%%#       *%%%% -%%        .    +    %:   -   %%%%%:
+#=%%%%%:         =%%%%%%%%%%%%%%%%%%%%%%%%%%%%  .%%%%%%% -%%            +%#  *%= %-    %%%%%:
+#=%%%%%%=        -%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%=%%=        .=- +%#  *%==%:    %%%%%:
+#=%%%%%%%        +%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%+         ++ *%%= #%++%    .%%%%%:
+#=%%%%%%%-       =%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%+   .-    =+ +%%:=%%==%  #-+%%%%%:
+#=%%%%%%%=-%      #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%+   =%%% .#+ *%%-+%%++     *%%%%%:
+#=%%%%%%%=-%%%:   =%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    +%%%+ . *%%%+#%++    +%%%%%%:
+#=%%%%%%%##%%%%::* =%%%%%%%%%%%*         %%%%%%%%%%%%%%%%%%%#     #%%+  #%%% *% %   *%%%%%%%:
+#=%%%%%%%%%%%+ %%.%-:%%%%%%%%%# %%%%%%%%%%%=#%%%%%%%%%%%%%%%%*     #%%%%%%%%+#%%+  +%%%%%%%%:
+#=%%%%%%%%%%:#%%==%%%-*%%%%%%%%*.%%%%%%%%%%#%%%%%%%%%%%%%%%%%%    -%%%%%%%%%%%%# .%%%%%%%%%%:
+#=%%%%%%%%%:+%%#:%%%%#=:+%%%%%%%*+%%%%%%%%%=%%%%%%%%%%%%%%%#  %%+:#%%%%%%%%%%%%++%%%%%%%%%%%:
+#=%%%%%%%%*:%%%==%   #%%: %%%%%%%#* .%%%  :#%%%%%%%%%%%%%%#:#%-***%%%%%%%%%%%%%#%%%%%%%%%%%%:
+#=%%%%%%%# -%%%- #%  %%%%*=.=%%%%%%%%%#%%%%%%%%%%%%%%%*-   #%%%+=*%%%%%%%%%%% *# :%%%%%%%%%%:
+#=%%%%%%%#-%%%%%%%%  %%%%.%#* -%%%%%%%%%%%%%%%%%%%%%%*.+*%.%%%%#-%%%%%%%%%%%*-%%+=%%%%%%%%%%:
+#=%%%%%%%=-%%%%%%%+= #:#-* %%%%- : --+*%%%%%%+-=+.  #.%%%%*=%%%%:%%%%%%%%%%%.#%%% *%%%%%%%%%:
+#=%%%%%%% -%%%%%%% =#=#%%#:+%%..%%           -.%%%%%-   #%%+*%%%:%%%%%%%%%%-+%%%%+ #%%%%%%%%:
+#=%%%%%%%:%%%%%%%%-%%%%%%%*:#.%# .    :+%%%%%%%%%%%  .:   %%:#%%**%%%%%%%%%%%: .  .%%%%%%%%%:
+'@
+
+    if ($Title -eq "MENU PRINCIPAL") {
+        # --- LAYOUT LADO A LADO (Apenas Menu Principal) ---
+        $artLines = $art -split "`r`n"
+        $menuWidth = 60
+
+        # Preparar o conteudo da direita (Menu)
+        $rightContent = @()
+
+        # Espacamento inicial
+        1..5 | ForEach-Object { $rightContent += " " }
+
+        # Caixa de Status
+        if ($Status) {
+            $statusText = "Status do Sistema: $($Status.Text)"
+            $rightContent += "+-" + ("-" * ($menuWidth - 4)) + "-+"
+            $rightContent += "| " + $statusText.PadRight($menuWidth - 4) + " |"
+            $rightContent += "+-" + ("-" * ($menuWidth - 4)) + "-+"
+            if ($Status.Reasons) {
+                foreach ($reason in $Status.Reasons) {
+                    $rightContent += "| ! " + $reason.Substring(0, [math]::Min($reason.Length, $menuWidth - 8)).PadRight($menuWidth - 8) + " |"
+                }
+                $rightContent += "+-" + ("-" * ($menuWidth - 4)) + "-+"
+            }
+            $rightContent += " "
+        }
+
+        # Caixa do Menu
+        $line = "+-" + ("-" * ($menuWidth - 4)) + "-+"
+        $paddedTitle = $Title.PadLeft(((($menuWidth - 6) - $Title.Length) / 2) + $Title.Length).PadRight($menuWidth - 6)
+
+        $rightContent += $line
+        $rightContent += "| $($paddedTitle) |"
+        $rightContent += $line
+        $rightContent += " "
+
+        foreach ($option in $Options) {
+            $rightContent += "  $option"
+        }
+
+        $rightContent += " "
+        $rightContent += $line
+
+        # Footer (Restaurado e Atualizado)
+        $rightContent += " "
+        $rightContent += "    Desenvolvido por: Moacir Pereira"
+        $rightContent += "    Estudante:        Engenharia de Computacao"
+        $rightContent += "    GitHub:           github.com/MoacirJr10"
+        $rightContent += "    Sugestoes sao sempre bem-vindas!"
+        $rightContent += ""
+
+        # Renderizacao Lado a Lado com Cores Tradicionais
+        $maxLines = [math]::Max($artLines.Count, $rightContent.Count)
+
+        for ($i = 0; $i -lt $maxLines; $i++) {
+            # Lado Esquerdo (Arte)
+            if ($i -lt $artLines.Count) {
+                Write-Host $artLines[$i] -NoNewline -ForegroundColor Green
+            } else {
+                Write-Host (" " * 92) -NoNewline
+            }
+
+            # Espacador
+            Write-Host "   " -NoNewline
+
+            # Lado Direito (Menu)
+            if ($i -lt $rightContent.Count) {
+                $lineContent = $rightContent[$i]
+
+                # Logica de Cores Tradicionais
+                if ($lineContent -match "Desenvolvido por:") {
+                    Write-Host "    Desenvolvido por: " -NoNewline -ForegroundColor Cyan
+                    Write-Host "Moacir Pereira" -ForegroundColor White
+                }
+                elseif ($lineContent -match "Estudante:") {
+                    Write-Host "    Estudante:        " -NoNewline -ForegroundColor Cyan
+                    Write-Host "Engenharia de Computacao" -ForegroundColor White
+                }
+                elseif ($lineContent -match "GitHub:") {
+                    Write-Host "    GitHub:           " -NoNewline -ForegroundColor Cyan
+                    Write-Host "github.com/MoacirJr10" -ForegroundColor White
+                }
+                elseif ($lineContent -match "Sugestoes") {
+                    Write-Host $lineContent -ForegroundColor Green
+                }
+                elseif ($lineContent -match "MENU PRINCIPAL") {
+                    # Titulo dentro da caixa
+                    Write-Host $lineContent -ForegroundColor Green
+                }
+                elseif ($lineContent.StartsWith("+") -or $lineContent.StartsWith("|")) {
+                    # Bordas e Status
+                    if ($lineContent -match "Status do Sistema") {
+                        Write-Host $lineContent -ForegroundColor $Status.Color -BackgroundColor DarkGray
+                    } else {
+                        Write-Host $lineContent -ForegroundColor Cyan
+                    }
+                }
+                elseif ($lineContent -match "\[\d\]") {
+                    # Opcoes
+                    Write-Host $lineContent -ForegroundColor Yellow
+                }
+                else {
+                    # Texto padrao
+                    Write-Host $lineContent -ForegroundColor White
+                }
+            } else {
+                Write-Host ""
             }
         }
+
+    } else {
+        # --- LAYOUT SIMPLES (Sub-menus) ---
+        $width = 92
         Write-Host ""
-    }
+        Write-Host "   SysBot - $Title" -ForegroundColor Green
+        Write-Host ""
 
-    # Menu Box
-    $line = "+-" + ("-" * $width) + "-+"
-    $paddedTitle = $Title.PadLeft(((($width - 2) - $Title.Length) / 2) + $Title.Length).PadRight($width - 2)
+        # Status Box
+        if ($Status) {
+            $statusLine = "Status: $($Status.Text)"
+            Write-Host $statusLine -ForegroundColor $Status.Color
+            Write-Host ""
+        }
 
-    Write-Host $line -ForegroundColor Cyan
-    Write-Host "| $($paddedTitle) |" -ForegroundColor Green
-    Write-Host $line -ForegroundColor Cyan
-    Write-Host ""
+        # Menu Box
+        $line = "+-" + ("-" * $width) + "-+"
+        $paddedTitle = $Title.PadLeft(((($width - 2) - $Title.Length) / 2) + $Title.Length).PadRight($width - 2)
 
-    foreach ($option in $Options) {
-        Write-Host "  $option" -ForegroundColor Yellow
-    }
+        Write-Host $line -ForegroundColor Cyan
+        Write-Host "| $($paddedTitle) |" -ForegroundColor Green
+        Write-Host $line -ForegroundColor Cyan
+        Write-Host ""
 
-    Write-Host ""
-    Write-Host $line -ForegroundColor Cyan
+        foreach ($option in $Options) {
+            Write-Host "  $option" -ForegroundColor Yellow
+        }
 
-    # Footer / Credits
-    if ($Title -eq "MENU PRINCIPAL") {
-        Write-Host "" -ForegroundColor DarkGray
-        Write-Host "    Desenvolvido por: " -NoNewline -ForegroundColor Cyan
-        Write-Host "MoacirJr10" -ForegroundColor White
-        Write-Host "    Estudante:" -NoNewline -ForegroundColor Cyan
-        Write-Host "  Engenharia de Computacao" -ForegroundColor White
-        Write-Host "    GitHub: " -NoNewline -ForegroundColor Cyan
-        Write-Host "github.com/MoacirJr10" -ForegroundColor White
-        Write-Host "    Sugestoes sao sempre bem-vindas!" -ForegroundColor Green
-        Write-Host "" -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host $line -ForegroundColor Cyan
     }
     
     return Read-Host "`n  [>] Escolha uma opcao"
@@ -103,7 +244,7 @@ function Execute-Action {
         [switch]$IsLongRunning
     )
     Clear-Host
-    $width = 70
+    $width = 92
     $line = "+-" + ("-" * $width) + "-+"
     $paddedTitle = "EXECUTANDO: $Title".PadLeft(((($width - 2) - "EXECUTANDO: $Title".Length) / 2) + "EXECUTANDO: $Title".Length).PadRight($width - 2)
 
@@ -130,7 +271,7 @@ function Execute-Action {
 function Show-HelpScreen {
     param([string]$Title, [array]$HelpLines)
     Clear-Host
-    $width = 70
+    $width = 92
     $line = "+-" + ("-" * $width) + "-+"
     $paddedTitle = $Title.PadLeft(((($width - 2) - $Title.Length) / 2) + $Title.Length).PadRight($width - 2)
 
