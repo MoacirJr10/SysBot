@@ -6,16 +6,9 @@ $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
 Set-StrictMode -Version Latest
 
-# --- Gerenciamento de Configuracao (config.json) ---
-$configPath = "./config.json"
-if (-not (Test-Path $configPath)) {
-    $defaultConfig = @{
-        daysForOldLogs = 30
-        lowDiskSpaceThreshold = 15
-    }
-    $defaultConfig | ConvertTo-Json | Out-File $configPath -Encoding UTF8
-}
-$config = Get-Content $configPath | ConvertFrom-Json
+# --- Configuracoes Globais ---
+$script:DaysForOldLogs = 30
+$script:LowDiskSpaceThreshold = 15
 
 # --- Gerenciamento de Logs ---
 if (-not (Test-Path -Path "./logs")) { New-Item -ItemType Directory -Path "./logs" | Out-Null }
@@ -35,6 +28,24 @@ function Test-IsAdmin {
 function Pausar {
     Write-Host "`n Pressione qualquer tecla para voltar ao menu..." -ForegroundColor Gray
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
+function Draw-Box {
+    param(
+        [int]$Width = 92,
+        [string]$Title = "",
+        [string]$TitleColor = "Green",
+        [string]$BorderColor = "Cyan"
+    )
+    $line = "+-" + ("-" * $Width) + "-+"
+    if ($Title) {
+        $paddedTitle = $Title.PadLeft(((($Width - 2) - $Title.Length) / 2) + $Title.Length).PadRight($Width - 2)
+        Write-Host $line -ForegroundColor $BorderColor
+        Write-Host "| $($paddedTitle) |" -ForegroundColor $TitleColor
+        Write-Host $line -ForegroundColor $BorderColor
+    } else {
+        Write-Host $line -ForegroundColor $BorderColor
+    }
 }
 
 function Show-Menu {
@@ -267,13 +278,7 @@ function Execute-Action {
 function Show-HelpScreen {
     param([string]$Title, [array]$HelpLines)
     Clear-Host
-    $width = 92
-    $line = "+-" + ("-" * $width) + "-+"
-    $paddedTitle = $Title.PadLeft(((($width - 2) - $Title.Length) / 2) + $Title.Length).PadRight($width - 2)
-
-    Write-Host $line -ForegroundColor Cyan
-    Write-Host "| $($paddedTitle) |" -ForegroundColor Green
-    Write-Host $line -ForegroundColor Cyan
+    Draw-Box -Width 92 -Title $Title -TitleColor "Green" -BorderColor "Cyan"
     Write-Host ""
 
     foreach($line in $HelpLines) {
@@ -283,6 +288,7 @@ function Show-HelpScreen {
             Write-Host "    $line" -ForegroundColor Gray
         }
     }
+    Draw-Box -Width 92 -BorderColor "Cyan"
     Pausar
 }
 
@@ -315,7 +321,7 @@ function Get-SystemStatus {
     try {
         $systemDrive = Get-Volume -DriveLetter $env:SystemDrive.Substring(0,1)
         $percentFree = [math]::Round(($systemDrive.SizeRemaining / $systemDrive.Size) * 100, 2)
-        if ($percentFree -lt $config.lowDiskSpaceThreshold) { $reasons += "Espaco livre em disco na unidade C: esta abaixo de $($config.lowDiskSpaceThreshold)%." }
+        if ($percentFree -lt $script:LowDiskSpaceThreshold) { $reasons += "Espaco livre em disco na unidade C: esta abaixo de $($script:LowDiskSpaceThreshold)%." }
     } catch {}
     if ($reasons.Count -gt 0) {
         $status.Text = "[ATENCAO NECESSARIA]"
@@ -414,11 +420,11 @@ function Limpeza-Avancada {
         $totalCleaned += Remove-Safe -Path "$env:APPDATA\Microsoft\Windows\Recent"
     }
     if ($IncludeLogs) {
-        Write-Host "[*] Limpando logs antigos (mais de $($config.daysForOldLogs) dias)..." -ForegroundColor Yellow
+        Write-Host "[*] Limpando logs antigos (mais de $($script:DaysForOldLogs) dias)..." -ForegroundColor Yellow
         $logPaths = @("$env:WINDIR\Logs", "$env:WINDIR\System32\LogFiles")
         foreach ($logPath in $logPaths) {
             if (Test-Path $logPath) {
-                $oldLogs = Get-ChildItem "$logPath\*" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$config.daysForOldLogs) }
+                $oldLogs = Get-ChildItem "$logPath\*" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$script:DaysForOldLogs) }
                 if ($oldLogs) {
                     $logSize = ($oldLogs | Measure-Object -Property Length -Sum).Sum
                     $oldLogs | Remove-Item -Force -ErrorAction SilentlyContinue
@@ -632,7 +638,7 @@ function Menu-Relatorios {
             '3' { Execute-Action -Title "EXPORTANDO PROGRAMAS" -Action { Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | Select-Object DisplayName, DisplayVersion | Out-File "$env:USERPROFILE\Desktop\Programas_$(Get-Date -f yyyy-MM-dd).txt" } }
             '4' { Execute-Action -Title "SALVANDO CONFIGURACAO DE REDE" -Action { ipconfig /all | Out-File "$env:USERPROFILE\Desktop\Rede_$(Get-Date -f yyyy-MM-dd).txt" } }
             '5' { Execute-Action -Title "CRIANDO DUMP DO SISTEMA" -Action { $folder = "$env:USERPROFILE\Desktop\SysBot_Dump_$(Get-Date -f yyyy-MM-dd_HH-mm)"; New-Item -ItemType Directory -Path $folder -Force | Out-Null; systeminfo | Out-File "$folder\systeminfo.txt"; Get-Process | Out-File "$folder\processes.txt"; Get-Service | Out-File "$folder\services.txt" } -IsLongRunning }
-            '6' { Execute-Action -Title "ANALISANDO INTEGRIDADE" -Action { $results = @(); sfc /verifyonly; if ($LASTEXITCODE -eq 0) { $results += "[+] SFC: Sistema integro" } else { $results += "[!] SFC: Problemas encontrados" }; $dismResult = DISM /Online /Cleanup-Image /ScanHealth; if ($dismResult -match "nenhuma corrupcao") { $results += "[+] DISM: Imagem integra" } else { $results += "[!] DISM: Possiveis problemas encontrados" }; $problemDrivers = Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -ne 0 }; if ($problemDrivers) { $results += "[!] DRIVERS: $($problemDrivers.Count) dispositivos com problemas" } else { $results += "[+] DRIVERS: Todos funcionando corretamente" }; Write-Host "`n=== RESULTADOS DA ANALISE ===" -ForegroundColor Cyan; $results | ForEach-Object { $color = if ($_ -match '\[\+\]') { 'Green' } elseif ($_ -match '\[\!\]') { 'Yellow' } else { 'Red' }; Write-Host $_ -ForegroundColor $color } } -IsLongRunning }
+            '6' { Execute-Action -Title "ANALISANDO INTEGRIDADE" -Action { $results = @(); sfc /verifyonly; if ($LASTEXITCODE -eq 0) { $results += "[+] SFC: Sistema integro" } else { $results += "[!] SFC: Problemas encontrados" }; DISM /Online /Cleanup-Image /ScanHealth 2>&1 | Out-Null; if ($LASTEXITCODE -eq 0) { $results += "[+] DISM: Imagem integra" } else { $results += "[!] DISM: Possiveis problemas encontrados" }; $problemDrivers = Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -ne 0 }; if ($problemDrivers) { $results += "[!] DRIVERS: $($problemDrivers.Count) dispositivos com problemas" } else { $results += "[+] DRIVERS: Todos funcionando corretamente" }; Write-Host "`n=== RESULTADOS DA ANALISE ===" -ForegroundColor Cyan; $results | ForEach-Object { $color = if ($_ -match '\[\+\]') { 'Green' } elseif ($_ -match '\[\!\]') { 'Yellow' } else { 'Red' }; Write-Host $_ -ForegroundColor $color } } -IsLongRunning }
             '8' { Show-HelpScreen -Title "AJUDA: RELATORIOS" -HelpLines @("[1] Gerar Relatorio (HTML)", "O que faz: Cria um relatorio visual e organizado sobre seu sistema.", "", "[2] Exportar Drivers (CSV)", "O que faz: Cria uma planilha com uma lista tecnica de todos os drivers.", "", "[3] Exportar Programas (TXT)", "O que faz: Cria um arquivo de texto com a lista de todos os seus programas.", "", "[4] Salvar Configuracao de Rede", "O que faz: Gera um arquivo de texto com um diagnostico completo da rede.", "", "[5] Criar Dump do Sistema", "O que faz: Cria uma pasta com varios relatorios detalhados.", "", "[6] Analisar Integridade", "O que faz: Executa uma verificacao rapida da saude geral do sistema.") }
             default { if ($subChoice -ne '9') {Write-Host "[-] Opcao invalida" -ForegroundColor Red; Pausar} }
         }
@@ -683,10 +689,6 @@ function Menu-DevTools {
 # ==============================================================================================
 
 do {
-    if (-not (Test-IsAdmin)) {
-        Clear-Host; Write-Host "[!] ERRO: Este script precisa de privilegios de Administrador." -ForegroundColor Red; Write-Host "[!] Por favor, clique com o botao direito em 'run_admin.bat' e escolha 'Executar como administrador'." -ForegroundColor Red; Pausar; break
-    }
-    
     $systemStatus = Get-SystemStatus
     $mainMenuOptions = @(
         "[1] Manutencao do Sistema",

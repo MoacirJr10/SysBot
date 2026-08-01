@@ -62,8 +62,7 @@ O SysBot e organizado em modulos, cada um com um proposito especifico:
 
 ## Creditos
 
-Este projeto foi desenvolvido por **MoacirJr10** como parte dos seus estudos em **Engenharia de Computacao**.
+Este projeto foi desenvolvido por **Moacir Pereira** como parte dos seus estudos em **Engenharia de Computacao**.
 
 - **GitHub:** [MoacirJr10](https://github.com/MoacirJr10)
-
-Sugestoes e contribuicoes sao sempre bem-vindas!
+- **Contato:** Sugestoes e contribuicoes sao sempre bem-vindas!

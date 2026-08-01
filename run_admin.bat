@@ -1,5 +1,5 @@
  @echo off
-title SYSBOT - MODO DE DEPURACAO
+ title SYSBOT
 chcp 65001 >nul
 
 :: 1. Verifica se o script está sendo executado como Administrador
@@ -10,11 +10,11 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-:: 2. Executa o script principal em modo de depuracao
-echo Carregando SysBot em modo de depuracao...
-echo A janela do PowerShell permanecera aberta para analise de erros.
+ :: 2. Executa o script principal
+ echo Carregando SysBot...
+ echo.
 
-powershell -NoExit -ExecutionPolicy Bypass -Command "& '%~dp0sysbot.ps1'"
+ powershell -ExecutionPolicy Bypass -Command "& '%~dp0sysbot.ps1'"
 
 echo.
 pause
