@@ -10,6 +10,39 @@ Set-StrictMode -Version Latest
 $script:DaysForOldLogs = 30
 $script:LowDiskSpaceThreshold = 15
 
+# --- Tema Visual (Retro-Moderno) ---
+$script:Theme = @{
+    # Status Icons (usando caracteres ASCII compatíveis)
+    Success = "[OK]"
+    Error = "[!!]"
+    Warning = "[!]"
+    Info = "[*]"
+    Bullet = ">"
+    Gear = "[*]"
+    Lock = "[L]"
+    Chart = "[#]"
+    
+    # Separators
+    ThinLine = "-"
+    ThickLine = "="
+    Cross = "+"
+    TLeft = "+"
+    TRight = "+"
+    BLeft = "+"
+    BRight = "+"
+    TJoin = "+"
+    BJoin = "+"
+    VBar = "|"
+    
+    # Colors
+    ColorSuccess = "Green"
+    ColorError = "Red"
+    ColorWarning = "Yellow"
+    ColorInfo = "Cyan"
+    ColorAccent = "Magenta"
+    ColorMuted = "Gray"
+}
+
 # --- Gerenciamento de Logs ---
 if (-not (Test-Path -Path "./logs")) { New-Item -ItemType Directory -Path "./logs" | Out-Null }
 $logFile = ".\logs\SysBot-Log_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').txt"
@@ -26,8 +59,87 @@ function Test-IsAdmin {
 }
 
 function Pausar {
-    Write-Host "`n Pressione qualquer tecla para voltar ao menu..." -ForegroundColor Gray
+    Write-Host "`n$($script:Theme.Bullet) Pressione qualquer tecla para voltar ao menu..." -ForegroundColor $script:Theme.ColorMuted
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
+function Write-StatusLine {
+    param(
+        [string]$Status,
+        [string]$Message,
+        [string]$Type = "Info"
+    )
+    
+    $icon = switch ($Type) {
+        "Success" { $script:Theme.Success }
+        "Error" { $script:Theme.Error }
+        "Warning" { $script:Theme.Warning }
+        default { $script:Theme.Info }
+    }
+    
+    $color = switch ($Type) {
+        "Success" { $script:Theme.ColorSuccess }
+        "Error" { $script:Theme.ColorError }
+        "Warning" { $script:Theme.ColorWarning }
+        default { $script:Theme.ColorInfo }
+    }
+    
+    Write-Host "[$icon] $Status" -ForegroundColor $color -NoNewline
+    if ($Message) {
+        Write-Host " : $Message" -ForegroundColor White
+    } else {
+        Write-Host ""
+    }
+}
+
+function Write-Separator {
+    param([int]$Width = 92, [string]$Style = "thin")
+    
+    if ($Style -eq "thick") {
+        Write-Host ($script:Theme.ThickLine * ($Width + 4)) -ForegroundColor $script:Theme.ColorAccent
+    } else {
+        Write-Host ($script:Theme.ThinLine * ($Width + 4)) -ForegroundColor $script:Theme.ColorMuted
+    }
+}
+
+function Write-Header {
+    param([string]$Text, [string]$Color = "Cyan")
+    Write-Host ""
+    Write-Host "  +=======================================================+" -ForegroundColor $Color
+    Write-Host "  |  $($Text.PadRight(49))  |" -ForegroundColor $Color
+    Write-Host "  +=======================================================+" -ForegroundColor $Color
+    Write-Host ""
+}
+
+function Write-Footer {
+    param([string]$Color = "Cyan")
+    Write-Host "  +=======================================================+" -ForegroundColor $Color
+    Write-Host ""
+}
+
+function Write-Success {
+    param([string]$Message, [string]$Indent = "")
+    Write-StatusLine -Status "$($script:Theme.Success) OK" -Message $Message -Type "Success"
+}
+
+function Write-Error {
+    param([string]$Message, [string]$Indent = "")
+    Write-StatusLine -Status "$($script:Theme.Error) ERRO" -Message $Message -Type "Error"
+}
+
+function Write-Warning {
+    param([string]$Message, [string]$Indent = "")
+    Write-StatusLine -Status "$($script:Theme.Warning) AVISO" -Message $Message -Type "Warning"
+}
+
+function Write-Info {
+    param([string]$Message, [string]$Indent = "")
+    Write-StatusLine -Status "$($script:Theme.Bullet) INFO" -Message $Message -Type "Info"
+}
+
+function Show-ProgressMessage {
+    param([string]$Message)
+    Write-Host "$($script:Theme.Gear) $Message" -ForegroundColor $script:Theme.ColorInfo
 }
 
 function Draw-Box {
@@ -35,13 +147,31 @@ function Draw-Box {
         [int]$Width = 92,
         [string]$Title = "",
         [string]$TitleColor = "Green",
-        [string]$BorderColor = "Cyan"
+        [string]$BorderColor = "Cyan",
+        [switch]$Modern
     )
-    $line = "+-" + ("-" * $Width) + "-+"
+    if ($Modern) {
+        # MODERNO: Usando caracteres Unicode
+        $topLeft = $script:Theme.TLeft
+        $topRight = $script:Theme.TRight
+        $bottomLeft = $script:Theme.BLeft
+        $bottomRight = $script:Theme.BRight
+        $horizontal = $script:Theme.ThickLine
+    } else {
+        # RETRO: ASCII puro
+        $topLeft = "+"
+        $topRight = "+"
+        $bottomLeft = "+"
+        $bottomRight = "+"
+        $horizontal = "-"
+    }
+    
+    $line = $topLeft + ($horizontal * ($Width + 2)) + $topRight
+    
     if ($Title) {
         $paddedTitle = $Title.PadLeft(((($Width - 2) - $Title.Length) / 2) + $Title.Length).PadRight($Width - 2)
         Write-Host $line -ForegroundColor $BorderColor
-        Write-Host "| $($paddedTitle) |" -ForegroundColor $TitleColor
+        Write-Host "║ $($paddedTitle) ║" -ForegroundColor $TitleColor
         Write-Host $line -ForegroundColor $BorderColor
     } else {
         Write-Host $line -ForegroundColor $BorderColor
@@ -143,7 +273,12 @@ function Show-Menu {
         $rightContent += " "
 
         foreach ($option in $Options) {
-            $rightContent += "  $option"
+            if ($option.StartsWith("[")) {
+                # Menu item com número colorido
+                $rightContent += "  > $option"
+            } else {
+                $rightContent += "  $option"
+            }
         }
 
         $rightContent += " "
@@ -251,44 +386,48 @@ function Execute-Action {
         [switch]$IsLongRunning
     )
     Clear-Host
-    $width = 92
-    $line = "+-" + ("-" * $width) + "-+"
-    $paddedTitle = "EXECUTANDO: $Title".PadLeft(((($width - 2) - "EXECUTANDO: $Title".Length) / 2) + "EXECUTANDO: $Title".Length).PadRight($width - 2)
-
-    Write-Host $line -ForegroundColor Magenta
-    Write-Host "| $($paddedTitle) |" -ForegroundColor White
-    Write-Host $line -ForegroundColor Magenta
+    
     Write-Host ""
-
+    Write-Header ">> $Title" -Color "Magenta"
+    
     if ($IsLongRunning) {
-        Write-Host "[*] Esta operacao pode levar varios minutos. Por favor, aguarde..." -ForegroundColor Cyan
+        Write-Host "$($script:Theme.Bullet) Esta operacao pode levar varios minutos. Por favor, aguarde..." -ForegroundColor $script:Theme.ColorInfo
         Write-Host ""
     }
 
     try {
         Invoke-Command -ScriptBlock $Action
-        Write-Host "`n[+] Acao concluida com sucesso." -ForegroundColor Green
+        Write-Host ""
+        Write-Success "Acao concluida com sucesso!"
     } catch {
-        Write-Host "`n[-] Ocorreu um erro durante a execucao." -ForegroundColor Red
-        Write-Host "    Mensagem: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host ""
+        Write-Error "Ocorreu um erro durante a execucao."
+        Write-Host "   Detalhes: $($_.Exception.Message)" -ForegroundColor $script:Theme.ColorMuted
     }
+    
+    Write-Footer -Color "Magenta"
     Pausar
 }
 
 function Show-HelpScreen {
     param([string]$Title, [array]$HelpLines)
     Clear-Host
-    Draw-Box -Width 92 -Title $Title -TitleColor "Green" -BorderColor "Cyan"
+    
+    Write-Header $Title -Color "Cyan"
     Write-Host ""
 
     foreach($line in $HelpLines) {
         if ($line.StartsWith("[")) {
-            Write-Host "  $line" -ForegroundColor Yellow
+            Write-Host "  $($script:Theme.Bullet) " -NoNewline -ForegroundColor $script:Theme.ColorAccent
+            Write-Host $line -ForegroundColor Yellow
+        } elseif ($line -eq "") {
+            Write-Host ""
         } else {
             Write-Host "    $line" -ForegroundColor Gray
         }
     }
-    Draw-Box -Width 92 -BorderColor "Cyan"
+    
+    Write-Footer -Color "Cyan"
     Pausar
 }
 
@@ -297,34 +436,34 @@ function Show-HelpScreen {
 # ==============================================================================================
 
 function Criar-PontoRestauracao {
-    Write-Host "[*] Tentando criar um Ponto de Restauracao do Sistema..." -ForegroundColor Yellow
+    Show-ProgressMessage "Tentando criar um Ponto de Restauracao do Sistema..."
     try {
         $restoreEnabled = Get-ComputerRestorePoint -ErrorAction SilentlyContinue
         Checkpoint-Computer -Description "SysBot_Backup_$(Get-Date -Format 'yyyyMMdd_HHmm')" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
-        Write-Host "[+] Ponto de restauracao criado com sucesso!" -ForegroundColor Green
+        Write-Success "Ponto de restauracao criado com sucesso!"
     } catch {
-        Write-Host "[!] Nao foi possivel criar o ponto de restauracao." -ForegroundColor Yellow
-        Write-Host "    Motivo: $($_.Exception.Message)" -ForegroundColor Gray
-        Write-Host "    Dica: Verifique se a 'Protecao do Sistema' esta ativada no Windows." -ForegroundColor Gray
+        Write-Warning "Nao foi possivel criar o ponto de restauracao."
+        Write-Host "   Motivo: $($_.Exception.Message)" -ForegroundColor $script:Theme.ColorMuted
+        Write-Host "   Dica: Verifique se a 'Protecao do Sistema' esta ativada no Windows." -ForegroundColor $script:Theme.ColorMuted
         Start-Sleep -Seconds 2
     }
 }
 
 function Get-SystemStatus {
-    $status = @{ Text = "[SAUDAVEL]"; Color = "Green"; Reasons = @() }
+    $status = @{ Text = "[*] SAUDAVEL"; Color = "Green"; Reasons = @() }
     $reasons = @()
     try {
         $updates = Get-CimInstance -ClassName "Win32_QuickFixEngineering"
         $lastUpdateTime = ($updates | Sort-Object -Property InstalledOn -Descending | Select-Object -First 1).InstalledOn
-        if ($lastUpdateTime -lt (Get-Date).AddDays(-30)) { $reasons += "Atualizacoes do Windows nao sao instaladas ha mais de 30 dias." }
+        if ($lastUpdateTime -lt (Get-Date).AddDays(-30)) { $reasons += "[!] Atualizacoes do Windows nao sao instaladas ha mais de 30 dias." }
     } catch {}
     try {
         $systemDrive = Get-Volume -DriveLetter $env:SystemDrive.Substring(0,1)
         $percentFree = [math]::Round(($systemDrive.SizeRemaining / $systemDrive.Size) * 100, 2)
-        if ($percentFree -lt $script:LowDiskSpaceThreshold) { $reasons += "Espaco livre em disco na unidade C: esta abaixo de $($script:LowDiskSpaceThreshold)%." }
+        if ($percentFree -lt $script:LowDiskSpaceThreshold) { $reasons += "[!] Espaco livre em disco na unidade C: esta abaixo de $($script:LowDiskSpaceThreshold)%." }
     } catch {}
     if ($reasons.Count -gt 0) {
-        $status.Text = "[ATENCAO NECESSARIA]"
+        $status.Text = "[!] ATENCAO NECESSARIA"
         $status.Color = "Yellow"
         $status.Reasons = $reasons
     }
@@ -334,14 +473,14 @@ function Get-SystemStatus {
 function Verificar-Atualizacoes {
     param([switch]$InstallUpdates)
     if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-        Write-Host "[!] Modulo PSWindowsUpdate nao encontrado. Usando Windows Update nativo..." -ForegroundColor Yellow
+        Write-Warning "Modulo PSWindowsUpdate nao encontrado. Usando Windows Update nativo..."
         Start-Process "ms-settings:windowsupdate" -Wait:$false; return
     }
     Import-Module PSWindowsUpdate -Force
     $updates = Get-WindowsUpdate
-    if ($updates.Count -eq 0) { Write-Host "[+] Sistema atualizado!" -ForegroundColor Green }
+    if ($updates.Count -eq 0) { Write-Success "Sistema atualizado!" }
     else { 
-        Write-Host "[*] $($updates.Count) atualizacoes encontradas" -ForegroundColor Yellow
+        Write-Info "$($updates.Count) atualizacoes encontradas"
         if ($InstallUpdates) {
             Criar-PontoRestauracao
             Install-WindowsUpdate -AcceptAll -AutoReboot:$false
@@ -352,25 +491,27 @@ function Verificar-Atualizacoes {
 function Verificar-Drivers {
     $drivers = Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -ne 0 }
     if ($drivers) {
-        Write-Host "[!] Drivers com problemas encontrados:" -ForegroundColor Yellow
+        Write-Warning "Drivers com problemas encontrados:"
         $drivers | Select-Object Name, DeviceID | Format-Table -AutoSize
-    } else { Write-Host "[+] Todos os drivers estao funcionando corretamente" -ForegroundColor Green }
+    } else { Write-Success "Todos os drivers estao funcionando corretamente" }
 }
 
 function Verificar-Disco {
     $drives = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
     foreach ($drive in $drives) {
-        Write-Host "[*] Verificando unidade $($drive.DriveLetter):\..." -ForegroundColor Yellow
+        Show-ProgressMessage "Verificando unidade $($drive.DriveLetter):\..."
         chkdsk "$($drive.DriveLetter):" /f /r
     }
 }
 
 function Show-HardwareSummary {
-    Write-Host "`n--- CPU ---" -ForegroundColor Cyan
+    Write-Header "[CPU] Processador" -Color "Cyan"
     Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed | Format-List
-    Write-Host "`n--- GPU ---" -ForegroundColor Cyan
+    
+    Write-Header "[GPU] Placa de Video" -Color "Cyan"
     Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notlike "*Basic*" } | Select-Object Name, DriverVersion, @{Name='VRAM(MB)';Expression={[math]::Round($_.AdapterRAM/1MB,0)}} | Format-Table -AutoSize
-    Write-Host "`n--- Memoria RAM ---" -ForegroundColor Cyan
+    
+    Write-Header "[RAM] Memoria" -Color "Cyan"
     $osInfo = Get-CimInstance Win32_OperatingSystem
     $totalMem = $osInfo.TotalVisibleMemorySize; $freeMem = $osInfo.FreePhysicalMemory; $usedMem = $totalMem - $freeMem
     $totalRAM_GB = [math]::Round($totalMem / 1MB, 2); $usedPercent = [math]::Round(($usedMem / $totalMem) * 100, 2)
@@ -461,28 +602,42 @@ function Criar-Relatorio {
     Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } | ForEach-Object { $sizeGB = [math]::Round($_.Size / 1GB, 2); $freeGB = [math]::Round($_.SizeRemaining / 1GB, 2); $html += "<tr><td>$($_.DriveLetter):</td><td>$sizeGB GB</td><td>$freeGB GB</td><td>$($_.FileSystem)</td></tr>" }
     $html += "</table><footer><p><em>Relatorio gerado pelo SysBot</em></p></footer></body></html>
 "
-    $html | Out-File $reportPath -Encoding UTF8; Write-Host "[+] Relatorio salvo em: $reportPath" -ForegroundColor Green
+    $html | Out-File $reportPath -Encoding UTF8
+    Write-Success "Relatorio salvo em: $reportPath"
 }
 
 function Verificar-Firewall {
     $profiles = Get-NetFirewallProfile; $allEnabled = $true
     foreach ($profile in $profiles) {
-        if ($profile.Enabled -ne 'True') { $allEnabled = $false; Write-Host "[!] Firewall esta DESATIVADO para o perfil: $($profile.Name)" -ForegroundColor Red }
-        else { Write-Host "[+] Firewall esta ATIVADO para o perfil: $($profile.Name)" -ForegroundColor Green }
+        if ($profile.Enabled -ne 'True') {
+            $allEnabled = $false
+            Write-Error "Firewall esta DESATIVADO para o perfil: $($profile.Name)"
+        }
+        else {
+            Write-Success "Firewall esta ATIVADO para o perfil: $($profile.Name)"
+        }
     }
-    if ($allEnabled) { Write-Host "`n[+] Todos os perfis do firewall estao ativos." -ForegroundColor Green }
+    if ($allEnabled) { Write-Host "" ; Write-Success "Todos os perfis do firewall estao ativos." }
 }
 
 function Verificar-Antivirus {
     $av = Get-CimInstance -Namespace "root/SecurityCenter2" -ClassName AntiVirusProduct
     if ($av) { 
-        Write-Host "[+] Antivirus Encontrado: $($av.displayName)" -ForegroundColor Green
-        if ($av.productState -eq "397312" -or $av.productState -eq "266240") { Write-Host "[+] Status: Ativo e atualizado." -ForegroundColor Green }
-        else { Write-Host "[!] Status: O antivirus pode estar desatualizado ou inativo." -ForegroundColor Yellow }
-    } else { Write-Host "[!] Nenhum antivirus foi detectado pelo Windows." -ForegroundColor Red }
+        Write-Success "Antivirus Encontrado: $($av.displayName)"
+        if ($av.productState -eq "397312" -or $av.productState -eq "266240") {
+            Write-Success "Status: Ativo e atualizado."
+        }
+        else {
+            Write-Warning "Status: O antivirus pode estar desatualizado ou inativo."
+        }
+    } else {
+        Write-Error "Nenhum antivirus foi detectado pelo Windows."
+    }
 }
 
 function Listar-ProgramasInicializacao {
+    Write-Info "Programas configurados para iniciar com o Windows:"
+    Write-Host ""
     Get-CimInstance -ClassName Win32_StartupCommand | Select-Object Name, Command, User, Location | Format-Table -AutoSize
 }
 
