@@ -47,10 +47,10 @@ $script:Theme = @{
 # --- Gerenciamento de Logs ---
 if ($env:OS -ne "Windows_NT") { throw "SysBot requer Windows." }
 if ($PSVersionTable.PSEdition -ne "Desktop") { throw "Use Windows PowerShell 5.1 (powershell.exe)." }
-if ([Environment]::OSVersion.Version.Major -lt 10) { throw "SysBot requer Windows 10 ou 11." }
+if ([int](Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).BuildNumber -lt 10240) { throw "SysBot requer Windows 10 ou 11." }
 New-Item -ItemType Directory -Path $script:LogDirectory -Force | Out-Null
 $logFile = Join-Path $script:LogDirectory ("SysBot-Log_{0}_{1}.txt" -f (Get-Date -Format "yyyy-MM-dd_HH-mm-ss"), $PID)
-Start-Transcript -LiteralPath $logFile | Out-Null
+Start-Transcript -Path $logFile | Out-Null
 
 # ==============================================================================================
 #                                   FUNCOES DE UI E CORE
@@ -279,7 +279,6 @@ function Show-HelpScreen {
 function Criar-PontoRestauracao {
     Show-ProgressMessage "Tentando criar um Ponto de Restauracao do Sistema..."
     try {
-        $restoreEnabled = Get-ComputerRestorePoint -ErrorAction SilentlyContinue
         Checkpoint-Computer -Description "SysBot_Backup_$(Get-Date -Format 'yyyyMMdd_HHmm')" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
         Write-Success "Ponto de restauracao criado com sucesso!"
     } catch {
@@ -514,10 +513,12 @@ function Manage-DevTool {
         [switch]$NoInstall
     )
     
-    $exePath = Get-Command $ExecutableName -ErrorAction SilentlyContinue
+    $exePath = Get-Command $ExecutableName -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($exePath) {
-        $version = & $exePath.Source $VersionArgument
-        if ($LASTEXITCODE -ne 0) { Write-SysWarning "Falha ao consultar a versao (codigo $LASTEXITCODE)."; if ($NoInstall) { return } }
+        try {
+            $version = & $exePath.Source $VersionArgument 2>&1 | ForEach-Object { $_.ToString() }
+            if ($LASTEXITCODE -ne 0) { throw "Codigo $LASTEXITCODE" }
+        } catch { Write-SysWarning "Falha ao consultar a versao de $($ToolName): $($_.Exception.Message)"; return }
         Write-Host "[+] $ToolName ja esta instalado." -ForegroundColor Green
         Write-Host "    Versao: $version" -ForegroundColor Cyan
         if (-not $NoInstall) {
@@ -588,7 +589,7 @@ function Menu-Rede {
         switch ($subChoice) {
             '1' { Execute-Action -Title "CONFIGURACAO DE REDE" -Action { Get-NetIPConfiguration | Where-Object { $_.NetAdapter.Status -eq "Up" } | Select-Object InterfaceAlias, IPv4Address, IPv4DefaultGateway, DNSServer | Format-Table -AutoSize } }
             '2' { Execute-Action -Title "TESTANDO CONECTIVIDADE" -Action { $ping1 = Test-Connection -ComputerName "8.8.8.8" -Count 4 -Quiet; Write-Host "Google DNS (8.8.8.8): $(if($ping1){'[+] OK'}else{'[-] FALHA'})" -ForegroundColor $(if($ping1){'Green'}else{'Red'}); $ping2 = Test-Connection -ComputerName "1.1.1.1" -Count 4 -Quiet; Write-Host "Cloudflare DNS (1.1.1.1): $(if($ping2){'[+] OK'}else{'[-] FALHA'})" -ForegroundColor $(if($ping2){'Green'}else{'Red'}) } }
-            '3' { Execute-Action -Title "TESTE DE RESPOSTA HTTP" -Action { $url = "https://www.google.com"; $time = Measure-Command { $response = Invoke-WebRequest -Uri $url -TimeoutSec 10 }; if ($response.StatusCode -eq 200) { Write-Host "[+] Conexao ativa - Tempo de resposta: $($time.TotalMilliseconds) ms" -ForegroundColor Green } } }
+            '3' { Execute-Action -Title "TESTE DE RESPOSTA HTTP" -Action { $url = "https://www.google.com"; $time = Measure-Command { Invoke-WebRequest -Uri $url -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop | Out-Null }; Write-Info "Requisicao HTTP concluida em $([math]::Round($time.TotalMilliseconds)) ms (nao mede velocidade)." } }
             '4' { Execute-Action -Title "TESTE DE PORTA TCP" -Action { $hostname = Read-Host "Digite o host ou IP"; [int]$port = 0; $portInput = Read-Host "Digite a porta"; if (-not [int]::TryParse($portInput,[ref]$port) -or $port -lt 1 -or $port -gt 65535 -or [string]::IsNullOrWhiteSpace($hostname)) { throw "Informe um host e uma porta entre 1 e 65535." }; if ($hostname -and $port) { Write-Host "[*] Testando $hostname`:$port..." -ForegroundColor Yellow; $result = Test-NetConnection -ComputerName $hostname -Port $port -WarningAction SilentlyContinue; if ($result.TcpTestSucceeded) { Write-Host "[+] Porta $port esta aberta em $hostname" -ForegroundColor Green } else { Write-Host "[-] Porta $port esta fechada ou filtrada em $hostname" -ForegroundColor Red } } } }
             '5' { Execute-Action -Title "RENOVANDO CONFIGURACAO DE REDE" -Action { if (Confirm-SysAction "A renovacao DHCP pode interromper a rede e sessoes remotas. Continuar?") { Invoke-SysNative -Name "$env:SystemRoot\System32\ipconfig.exe" -Arguments @("/flushdns"); Invoke-SysNative -Name "$env:SystemRoot\System32\ipconfig.exe" -Arguments @("/renew") } else { Write-Info "Cancelado." } } -IsLongRunning }
             '6' { Execute-Action -Title "ANALISANDO CONEXOES ATIVAS" -Action { Get-NetTCPConnection -State Established | Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State, @{Name='Process';Expression={(Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName}} | Sort-Object Process | Format-Table -AutoSize | Out-Host -Paging } }
@@ -645,7 +646,13 @@ function Menu-Relatorios {
             '3' { Execute-Action -Title "EXPORTANDO PROGRAMAS" -Action { Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | Select-Object DisplayName, DisplayVersion | Out-File "$script:DesktopDirectory\Programas_$(Get-Date -f yyyy-MM-dd).txt" } }
             '4' { Execute-Action -Title "SALVANDO CONFIGURACAO DE REDE" -Action { ipconfig /all | Out-File "$script:DesktopDirectory\Rede_$(Get-Date -f yyyy-MM-dd).txt" } }
             '5' { Execute-Action -Title "CRIANDO DUMP DO SISTEMA" -Action { $folder = "$script:DesktopDirectory\SysBot_Dump_$(Get-Date -f yyyy-MM-dd_HH-mm)"; New-Item -ItemType Directory -Path $folder -Force | Out-Null; systeminfo | Out-File "$folder\systeminfo.txt"; Get-Process | Out-File "$folder\processes.txt"; Get-Service | Out-File "$folder\services.txt" } -IsLongRunning }
-            '6' { Execute-Action -Title "ANALISANDO INTEGRIDADE" -Action { $results = @(); sfc /verifyonly; if ($LASTEXITCODE -eq 0) { $results += "[+] SFC: Sistema integro" } else { $results += "[!] SFC: Problemas encontrados" }; DISM /Online /Cleanup-Image /ScanHealth 2>&1 | Out-Null; if ($LASTEXITCODE -eq 0) { $results += "[+] DISM: Imagem integra" } else { $results += "[!] DISM: Possiveis problemas encontrados" }; $problemDrivers = Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -ne 0 }; if ($problemDrivers) { $results += "[!] DRIVERS: $($problemDrivers.Count) dispositivos com problemas" } else { $results += "[+] DRIVERS: Todos funcionando corretamente" }; Write-Host "`n=== RESULTADOS DA ANALISE ===" -ForegroundColor Cyan; $results | ForEach-Object { $color = if ($_ -match '\[\+\]') { 'Green' } elseif ($_ -match '\[\!\]') { 'Yellow' } else { 'Red' }; Write-Host $_ -ForegroundColor $color } } -IsLongRunning }
+            '6' { Execute-Action -Title "ANALISANDO INTEGRIDADE" -Action {
+                foreach ($check in @(@{ Name = "sfc.exe"; Arguments = @("/verifyonly") }, @{ Name = "dism.exe"; Arguments = @("/Online","/Cleanup-Image","/ScanHealth") })) {
+                    try { Invoke-SysNative -Name (Join-Path "$env:SystemRoot\System32" $check.Name) -Arguments $check.Arguments; Write-Info "Consulte a saida de $($check.Name) para o diagnostico; codigo 0 nao comprova integridade." }
+                    catch { Write-SysWarning $_.Exception.Message }
+                }
+                Verificar-Drivers
+            } -IsLongRunning }
             '8' { Show-HelpScreen -Title "AJUDA: RELATORIOS" -HelpLines @("[1] Gerar Relatorio (HTML)", "O que faz: Cria um relatorio visual e organizado sobre seu sistema.", "", "[2] Exportar Drivers (CSV)", "O que faz: Cria uma planilha com uma lista tecnica de todos os drivers.", "", "[3] Exportar Programas (TXT)", "O que faz: Cria um arquivo de texto com a lista de todos os seus programas.", "", "[4] Salvar Configuracao de Rede", "O que faz: Gera um arquivo de texto com um diagnostico completo da rede.", "", "[5] Criar Dump do Sistema", "O que faz: Cria uma pasta com varios relatorios detalhados.", "", "[6] Analisar Integridade", "O que faz: Executa uma verificacao rapida da saude geral do sistema.") }
             default { if ($subChoice -ne '9') {Write-Host "[-] Opcao invalida" -ForegroundColor Red; Pausar} }
         }
@@ -683,9 +690,11 @@ function Menu-DevTools {
                     Manage-DevTool -ToolName "Python" -ExecutableName "python.exe" -VersionArgument "--version" -NoInstall
                     Manage-DevTool -ToolName "Java" -ExecutableName "java.exe" -VersionArgument "-version" -NoInstall
                     Manage-DevTool -ToolName "Git" -ExecutableName "git.exe" -VersionArgument "--version" -NoInstall
+                    Manage-DevTool -ToolName "Visual Studio Code" -ExecutableName "code.cmd" -VersionArgument "--version" -NoInstall
+                    Manage-DevTool -ToolName "NodeJS" -ExecutableName "node.exe" -VersionArgument "--version" -NoInstall
                 }
             }
-            'h' { Show-HelpScreen -Title "AJUDA: DEV TOOLS" -HelpLines @("[1-5] Gerenciar Ferramentas", "O que faz: Verifica se uma ferramenta esta instalada e mostra sua versao.", "", "[v1] Verificar todas as versoes", "O que faz: Executa uma verificacao rapida de versao para Python, Java e Git.") }
+            'h' { Show-HelpScreen -Title "AJUDA: DEV TOOLS" -HelpLines @("[1-5] Gerenciar Ferramentas", "O que faz: Verifica se uma ferramenta esta instalada e mostra sua versao.", "", "[v1] Verificar todas as versoes", "O que faz: Executa uma verificacao rapida de versao para Python, Java, Git, VS Code e NodeJS.") }
             default { if ($subChoice -ne '0') {Write-Host "[-] Opcao invalida" -ForegroundColor Red; Pausar} }
         }
     } while ($true)
