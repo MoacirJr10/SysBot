@@ -24,3 +24,28 @@ jobs:
             throw 'PowerShell syntax validation failed.'
           }
           Write-Host 'Syntax validation passed; maintenance commands were not executed.'
+      - name: Test isolated diagnostic and safety helpers
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tokens = $null
+          $errors = $null
+          $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.\sysbot.ps1').Path, [ref]$tokens, [ref]$errors)
+          if ($errors.Count) { throw 'Parse error' }
+          # Load only pure/read-only helper definitions, never the interactive script.
+          $names = @('ConvertTo-SysHtml','Get-SysDiagnosticSection','Test-SafeCleanupFolder')
+          foreach ($name in $names) {
+            $definition = $ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name}, $true)
+            if ($null -eq $definition) { throw "Missing function: $name" }
+            . ([scriptblock]::Create($definition.Extent.Text))
+          }
+          if ((ConvertTo-SysHtml '<script> & "') -ne '&lt;script&gt; &amp; &quot;') { throw 'HTML encoding failed' }
+          $result = Get-SysDiagnosticSection 'Failure' { throw 'simulated error' }
+          if ($result.Status -ne 'Indisponivel' -or $result.Detail -notmatch 'simulated error') { throw 'Diagnostic failure handling failed' }
+          $result = Get-SysDiagnosticSection 'Empty' { }
+          if ($result.Status -ne 'Sem dados retornados') { throw 'Empty diagnostic handling failed' }
+          $root = [IO.Path]::GetPathRoot($env:TEMP)
+          if (Test-SafeCleanupFolder $root) { throw 'Cleanup must reject disk roots' }
+          if (Test-SafeCleanupFolder 'relative-path') { throw 'Cleanup must reject relative paths' }
+          if (Test-SafeCleanupFolder '') { throw 'Cleanup must reject blank paths' }
+          Write-Host 'Isolated helper tests passed; no maintenance commands were executed.'
