@@ -1,68 +1,109 @@
-# SysBot - Sua Ferramenta de Otimizacao e Diagnostico para Windows
+# SysBot — Manutenção e diagnóstico do Windows
 
-<pre>
-   _____ __         __   ____        __
-  / ___// /_  ___  / /_ / __ )____  / /_
-  \__ \/ __ \/ _ \/ __// __  / __ \/ __/
- ___/ / / / /  __/ /_ / /_/ / /_/ / /_
-/____/_/ /_/\___/\__//_____/\____/\__/
-</pre>
+[![Licença MIT](https://img.shields.io/badge/Licença-MIT-green.svg)](LICENSE)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-blue)
+![PowerShell](https://img.shields.io/badge/PowerShell-5.1-blue)
 
-SysBot e uma poderosa suite de ferramentas de linha de comando, escrita em PowerShell, projetada para ajudar usuarios e tecnicos a otimizar, diagnosticar, limpar e auditar sistemas operacionais Windows.
+O SysBot é uma ferramenta gratuita e de código aberto para ajudar você a verificar, limpar e cuidar do seu computador Windows. Não é necessário saber programar.
 
----
+## Como baixar e usar
 
-## ⚠️ Aviso de Seguranca e Fonte Oficial
+### 1. Baixe o SysBot
 
-A unica fonte oficial e segura para obter o codigo-fonte do SysBot e o repositorio principal no GitHub:
+- Clique em **[Baixar SysBot (ZIP)](https://github.com/MoacirJr10/SysBot/archive/refs/heads/master.zip)** para baixar a versão da branch principal.
+- Ou acesse o [repositório oficial](https://github.com/MoacirJr10/SysBot), clique no botão verde **Code** (Código) e depois em **Download ZIP**.
 
-**[https://github.com/MoacirJr10/SysBot](https://github.com/MoacirJr10/SysBot)**
+### 2. Extraia os arquivos
 
-Para obter o projeto, use o comando `git clone` ou a opcao "Download ZIP" diretamente da pagina acima.
+1. Abra a pasta **Downloads** do Windows.
+2. Clique com o botão direito sobre o arquivo ZIP baixado.
+3. Selecione **Extrair Tudo...** e confirme.
+4. Abra a pasta extraída. Não execute o programa diretamente dentro do ZIP.
 
-### Dicas para se Manter Seguro
+### 3. Abra o programa
 
-1.  **Confie Apenas na Fonte Oficial:** Sempre obtenha os arquivos do projeto diretamente do link oficial do GitHub. Nao confie em pastas ou arquivos compactados enviados por outras pessoas ou baixados de outros sites.
+1. Localize o arquivo **run_admin.bat** (se as extensões estiverem ocultas, ele aparecerá como run_admin).
+2. Clique duas vezes nele. O Windows solicitará autorização de administrador (UAC).
+3. Confira se você baixou e revisou o programa de uma fonte confiável antes de aceitar a elevação.
+4. Quando o menu abrir, digite a opção desejada e pressione **Enter**.
 
-2.  **Inspecione o Codigo:** Este projeto e 100% de codigo aberto. Voce pode (e deve) ler o conteudo dos arquivos `sysbot.ps1` e `run_admin.bat` para entender exatamente quais comandos serao executados no seu sistema. Transparencia e a maior seguranca.
+### 4. Por onde começar?
 
-3.  **Desconfie de Versoes Modificadas:** Se alguem oferecer uma versao do SysBot com "funcionalidades secretas" ou "melhorias nao oficiais", desconfie. Pode ser uma isca para executar codigo malicioso.
+Para quem está usando pela primeira vez, escolha **[10] Central de Diagnóstico e Manutenção** no menu principal.
 
-4.  **Avisos de Execucao do Windows:** Ao tentar executar o `run_admin.bat` pela primeira vez, o Windows pode exibir um aviso de seguranca (SmartScreen) porque o arquivo foi baixado da internet. Se voce baixou do link oficial, pode clicar em "Mais informacoes" e "Executar mesmo assim" com seguranca.
+| Opção | O que acontece |
+| --- | --- |
+| **d** | Analisa o computador sem solicitar reparos ou alterações nas configurações. |
+| **s** | Simula a limpeza e estima os arquivos que poderiam ser removidos, sem excluí-los. |
+| **r** | Gera um relatório que pode ser aberto no navegador. |
+| **a** | Executa uma rotina guiada de manutenção, com confirmação para limpeza e verificações opcionais. |
+| **0** | Volta ao menu anterior ou fecha o programa no menu principal. |
 
----
+Também é possível escolher **g** no menu principal para abrir o seletor gráfico opcional. Os resultados e confirmações continuam no terminal.
 
-## Funcionalidades Principais
+### Se o Windows bloquear o programa
 
-O SysBot e organizado em modulos, cada um com um proposito especifico:
+O SysBot respeita a política de execução do PowerShell e as proteções do Windows. Se aparecer um aviso, não ignore automaticamente: confirme a origem, revise o código e consulte o administrador do computador, quando aplicável. Não desative o Microsoft Defender, SmartScreen, UAC ou políticas de segurança para executar o SysBot. Se você não puder validar a procedência ou não tiver autorização, não execute.
 
-- **Manutencao do Sistema:** Executa tarefas essenciais como instalacao de atualizacoes do Windows, verificacao de integridade de arquivos (SFC) e reparo da imagem do sistema (DISM).
-- **Informacoes de Hardware:** Exibe um resumo detalhado dos seus componentes de hardware, incluindo CPU, GPU, Memoria RAM e status dos discos.
-- **Diagnostico de Rede:** Oferece um conjunto de ferramentas para analisar a saude da sua conexao, testar conectividade, velocidade e configuracoes de rede.
-- **Ferramentas de Limpeza:** Libera espaco em disco de forma segura, removendo arquivos temporarios, caches do sistema e outros dados desnecessarios.
-- **Otimizacao Avancada:** Aplica otimizacoes de desempenho, como a desfragmentacao de HDDs, execucao de TRIM em SSDs e ajustes no plano de energia.
-- **Relatorios e Diagnosticos:** Gera relatorios completos sobre o sistema (em HTML), exporta listas de programas e drivers, e cria dumps de diagnostico.
-- **Auditoria de Seguranca:** Realiza uma verificacao basica de seguranca, analisando o status do Firewall, do Antivirus e listando programas que iniciam com o Windows.
+## Requisitos
 
-## Como Usar
+- Windows 10 ou 11, com Windows PowerShell 5.1.
+- Permissão de administrador.
+- WinGet (Instalador de Aplicativos) e PSWindowsUpdate são opcionais. Sem eles, algumas operações não estão disponíveis.
+- Conexão à internet somente para recursos que dependem dela, como atualizações e testes de rede.
+- Compatibilidade com todas as edições e configurações do Windows ainda não foi validada em máquinas reais.
 
-1.  Baixe os arquivos do repositorio oficial no GitHub.
-2.  Clique com o **botao direito** no arquivo `run_admin.bat`.
-3.  Selecione **"Executar como administrador"**.
-4.  O menu principal do SysBot sera exibido, e voce podera navegar pelas opcoes.
+## O que o SysBot faz?
 
+| Módulo | Recursos |
+| --- | --- |
+| Manutenção | Windows Update, WinGet, SFC, DISM, drivers e CHKDSK online em volumes NTFS |
+| Hardware | CPU, GPU, RAM, armazenamento e programas instalados |
+| Rede | IP/DNS, conectividade, tempo de resposta HTTP, portas TCP e conexões |
+| Limpeza | Temporários antigos, miniaturas, atalhos recentes opcionais e logs antigos do próprio SysBot |
+| Otimização | Otimização de discos pelo Windows, TRIM e desfragmentação quando a mídia é identificada |
+| Relatórios | HTML local, inventários e diagnóstico de integridade |
+| Segurança | Firewall, Microsoft Defender, antivírus registrados e inicialização |
+| Desenvolvimento | Consulta e instalação de ferramentas via WinGet |
+| Diagnóstico avançado | SMART e contadores de armazenamento, saúde estimada da bateria, eventos críticos dos últimos sete dias, amostras de CPU/RAM e diagnóstico integrado |
+| Manutenção guiada | Relatório antes/depois, limpeza confirmada e verificações opcionais SFC/DISM sem solicitar reparos |
+| Interface gráfica | Seletor visual opcional para as ferramentas de diagnóstico |
 
-## Compatibilidade
+## Segurança e privacidade
 
-- **Windows 10 e 11:** Compatibilidade total. O SysBot e otimizado para estes sistemas.
-- **Windows 8.1:** Compatibilidade parcial. A maioria das funcoes essenciais funciona, mas recursos como `winget` e a verificacao de Antivirus podem nao operar.
-- **Windows 7:** Compatibilidade limitada. Funcoes basicas (SFC, chkdsk, limpeza) funcionam, mas a maioria dos recursos modernos de diagnostico e seguranca nao sao suportados.
+- A simulação e o diagnóstico não solicitam instalações, reparos ou alterações de configuração; o SysBot mantém logs locais e grava relatórios quando solicitado.
+- A limpeza solicita confirmação, preserva arquivos temporários modificados nos últimos dois dias, ignora pontos de reanálise e não remove diretórios recursivamente.
+- Prefetch, logs do Windows, arquivos pessoais e configurações de segurança não são alvos da limpeza.
+- A rotina guiada não cria tarefas agendadas, não força atualizações nem reinicia o computador.
+- Dados SMART e capacidade da bateria dependem do hardware e do controlador. Dados ausentes e status Healthy não garantem ausência de defeitos.
+- O teste HTTP mede tempo de resposta, não velocidade em Mbps.
+- Pontos de restauração não substituem backups. Faça backup antes de realizar reparos.
+- Nenhum dado de diagnóstico é enviado automaticamente pelo SysBot a um serviço externo. Atualizações e testes de rede podem acessar seus respectivos serviços.
+- Não compartilhe relatórios ou logs sem revisar informações pessoais e técnicas.
 
----
+## Onde estão os relatórios?
 
-## Creditos
+Pressione **Win + R**, cole um dos caminhos abaixo e pressione Enter:
 
-Este projeto foi desenvolvido por **Moacir Pereira** como parte dos seus estudos em **Engenharia de Computacao**.
+- Relatórios HTML: `%LOCALAPPDATA%\SysBot\reports`
+- Logs: `%LOCALAPPDATA%\SysBot\logs`
 
-- **GitHub:** [MoacirJr10](https://github.com/MoacirJr10)
-- **Contato:** Sugestoes e contribuicoes sao sempre bem-vindas!
+Alguns inventários TXT/CSV das opções antigas são salvos na Área de Trabalho. Abra os relatórios HTML com seu navegador.
+
+## Contribuições
+
+Sugestões, relatos de erros e contribuições são sempre bem-vindos!
+
+Use [Issues](https://github.com/MoacirJr10/SysBot/issues) para propor melhorias ou reportar problemas. Para contribuir com código, crie uma branch em seu fork e abra um pull request. As mudanças devem passar por revisão e testes antes de entrar na versão principal. Não envie credenciais ou logs pessoais.
+
+O GitHub Actions verifica a sintaxe PowerShell em um ambiente Windows. Os testes automatizados não substituem testes funcionais em uma máquina virtual ou computador de testes.
+
+## Licença
+
+O SysBot é distribuído sob a **[licença MIT](LICENSE)**. Você pode usar, estudar, modificar e redistribuir o código, inclusive comercialmente, mantendo o aviso de copyright e a licença nas cópias ou partes substanciais. O software é oferecido sem garantias.
+
+## Créditos
+
+Desenvolvido por **Moacir Pereira** — [MoacirJr10](https://github.com/MoacirJr10).
+
+Obrigado por usar, testar e contribuir com o projeto!
