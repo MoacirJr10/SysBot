@@ -1,68 +1,51 @@
-# SysBot - Sua Ferramenta de Otimizacao e Diagnostico para Windows
+# SysBot — Manutenção e diagnóstico do Windows
 
-<pre>
-   _____ __         __   ____        __
-  / ___// /_  ___  / /_ / __ )____  / /_
-  \__ \/ __ \/ _ \/ __// __  / __ \/ __/
- ___/ / / / /  __/ /_ / /_/ / /_/ / /_
-/____/_/ /_/\___/\__//_____/\____/\__/
-</pre>
+O SysBot é uma ferramenta de linha de comando escrita em PowerShell para manutenção, diagnóstico, limpeza controlada e auditoria básica do Windows.
 
-SysBot e uma poderosa suite de ferramentas de linha de comando, escrita em PowerShell, projetada para ajudar usuarios e tecnicos a otimizar, diagnosticar, limpar e auditar sistemas operacionais Windows.
+## Requisitos
 
----
+- Windows 10 ou 11 e Windows PowerShell 5.1 (powershell.exe).
+- Permissões de administrador, concedidas pelo UAC.
+- WinGet e PSWindowsUpdate são opcionais. Se ausentes, algumas funções não estarão disponíveis.
+- Os testes automatizados não substituem testes em máquinas Windows reais. A compatibilidade com todas as edições e configurações ainda não foi validada.
 
-## ⚠️ Aviso de Seguranca e Fonte Oficial
+## Como usar
 
-A unica fonte oficial e segura para obter o codigo-fonte do SysBot e o repositorio principal no GitHub:
+1. Obtenha o código no [repositório oficial](https://github.com/MoacirJr10/SysBot).
+2. Extraia todos os arquivos para uma pasta local e examine os scripts.
+3. Execute `run_admin.bat` e aceite a elevação UAC somente se confiar no código.
+4. Escolha uma opção no menu. Leia os avisos e confirme operações que alteram o sistema.
 
-**[https://github.com/MoacirJr10/SysBot](https://github.com/MoacirJr10/SysBot)**
+O inicializador respeita a política de execução do PowerShell. Se o Windows bloquear o arquivo, verifique sua procedência, a assinatura (quando disponível) e a política da organização. Não desative o Defender, SmartScreen, UAC ou políticas de segurança para executar o SysBot.
 
-Para obter o projeto, use o comando `git clone` ou a opcao "Download ZIP" diretamente da pagina acima.
+## Funcionalidades
 
-### Dicas para se Manter Seguro
+| Módulo | Recursos |
+| --- | --- |
+| Manutenção | Windows Update, WinGet, SFC, DISM, drivers e CHKDSK online para NTFS |
+| Hardware | CPU, GPU, RAM, armazenamento e programas instalados |
+| Rede | IP/DNS, conectividade, resposta HTTP (não mede Mbps), portas TCP e conexões |
+| Limpeza | Arquivos temporários antigos, miniaturas, atalhos recentes opcionais e logs antigos do próprio SysBot |
+| Otimização | Otimização apropriada ao tipo de mídia pelo Windows; TRIM e desfragmentação específicos somente quando o disco é identificado |
+| Relatórios | HTML, inventários e diagnóstico de integridade |
+| Segurança | Perfis do firewall, Microsoft Defender, produtos registrados e inicialização |
+| Desenvolvimento | Consulta e instalação de ferramentas por WinGet |
 
-1.  **Confie Apenas na Fonte Oficial:** Sempre obtenha os arquivos do projeto diretamente do link oficial do GitHub. Nao confie em pastas ou arquivos compactados enviados por outras pessoas ou baixados de outros sites.
+## Segurança e validações
 
-2.  **Inspecione o Codigo:** Este projeto e 100% de codigo aberto. Voce pode (e deve) ler o conteudo dos arquivos `sysbot.ps1` e `run_admin.bat` para entender exatamente quais comandos serao executados no seu sistema. Transparencia e a maior seguranca.
+- A limpeza solicita confirmação, atua somente sobre arquivos elegíveis no nível direto de pastas conhecidas e ignora pontos de reanálise. Prefetch e logs do Windows são preservados.
+- Arquivos temporários modificados nos últimos dois dias são preservados. O tamanho informado corresponde aos arquivos removidos com sucesso, não necessariamente à variação física do espaço livre.
+- A verificação online do disco não solicita CHKDSK /f ou /r nem reinício.
+- Atualizações não solicitam reinício automático pelo SysBot; instaladores individuais e políticas do Windows podem ter comportamento próprio.
+- Operações de rede podem interromper conexões; a renovação DHCP pede confirmação.
+- O painel de status informa quando não consegue concluir uma consulta. Não indica que o computador esteja livre de vulnerabilidades.
+- Pontos de restauração dependem da Proteção do Sistema e não substituem backups.
+- Logs em `%LOCALAPPDATA%\SysBot\logs`. Relatórios podem conter informações pessoais e técnicas; revise antes de compartilhar.
 
-3.  **Desconfie de Versoes Modificadas:** Se alguem oferecer uma versao do SysBot com "funcionalidades secretas" ou "melhorias nao oficiais", desconfie. Pode ser uma isca para executar codigo malicioso.
+## Contribuições
 
-4.  **Avisos de Execucao do Windows:** Ao tentar executar o `run_admin.bat` pela primeira vez, o Windows pode exibir um aviso de seguranca (SmartScreen) porque o arquivo foi baixado da internet. Se voce baixou do link oficial, pode clicar em "Mais informacoes" e "Executar mesmo assim" com seguranca.
+Sugestões e pull requests são bem-vindos. Revise mudanças e teste-as em uma máquina virtual Windows antes de incorporar à versão principal. Não envie credenciais, logs pessoais ou alterações que enfraqueçam as proteções do Windows.
 
----
+## Créditos
 
-## Funcionalidades Principais
-
-O SysBot e organizado em modulos, cada um com um proposito especifico:
-
-- **Manutencao do Sistema:** Executa tarefas essenciais como instalacao de atualizacoes do Windows, verificacao de integridade de arquivos (SFC) e reparo da imagem do sistema (DISM).
-- **Informacoes de Hardware:** Exibe um resumo detalhado dos seus componentes de hardware, incluindo CPU, GPU, Memoria RAM e status dos discos.
-- **Diagnostico de Rede:** Oferece um conjunto de ferramentas para analisar a saude da sua conexao, testar conectividade, velocidade e configuracoes de rede.
-- **Ferramentas de Limpeza:** Libera espaco em disco de forma segura, removendo arquivos temporarios, caches do sistema e outros dados desnecessarios.
-- **Otimizacao Avancada:** Aplica otimizacoes de desempenho, como a desfragmentacao de HDDs, execucao de TRIM em SSDs e ajustes no plano de energia.
-- **Relatorios e Diagnosticos:** Gera relatorios completos sobre o sistema (em HTML), exporta listas de programas e drivers, e cria dumps de diagnostico.
-- **Auditoria de Seguranca:** Realiza uma verificacao basica de seguranca, analisando o status do Firewall, do Antivirus e listando programas que iniciam com o Windows.
-
-## Como Usar
-
-1.  Baixe os arquivos do repositorio oficial no GitHub.
-2.  Clique com o **botao direito** no arquivo `run_admin.bat`.
-3.  Selecione **"Executar como administrador"**.
-4.  O menu principal do SysBot sera exibido, e voce podera navegar pelas opcoes.
-
-
-## Compatibilidade
-
-- **Windows 10 e 11:** Compatibilidade total. O SysBot e otimizado para estes sistemas.
-- **Windows 8.1:** Compatibilidade parcial. A maioria das funcoes essenciais funciona, mas recursos como `winget` e a verificacao de Antivirus podem nao operar.
-- **Windows 7:** Compatibilidade limitada. Funcoes basicas (SFC, chkdsk, limpeza) funcionam, mas a maioria dos recursos modernos de diagnostico e seguranca nao sao suportados.
-
----
-
-## Creditos
-
-Este projeto foi desenvolvido por **Moacir Pereira** como parte dos seus estudos em **Engenharia de Computacao**.
-
-- **GitHub:** [MoacirJr10](https://github.com/MoacirJr10)
-- **Contato:** Sugestoes e contribuicoes sao sempre bem-vindas!
+Desenvolvido por **Moacir Pereira** — [MoacirJr10](https://github.com/MoacirJr10).
