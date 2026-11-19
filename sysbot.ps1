@@ -383,7 +383,7 @@ function Test-SafeCleanupFolder {
 }
 
 function Limpeza-Avancada {
-    param([switch]$IncludeTempFiles, [switch]$IncludePrefetch, [switch]$IncludeThumbnails, [switch]$IncludeRecentFiles, [switch]$IncludeLogs)
+    param([switch]$IncludeTempFiles, [switch]$IncludePrefetch, [switch]$IncludeThumbnails, [switch]$IncludeRecentFiles, [switch]$IncludeLogs, [switch]$DryRun)
     $local = [Environment]::GetFolderPath("LocalApplicationData")
     $windows = [Environment]::GetFolderPath("Windows")
     $recent = [Environment]::GetFolderPath("Recent")
@@ -407,6 +407,12 @@ function Limpeza-Avancada {
     }
     $candidates = @($candidates | Sort-Object FullName -Unique)
     Write-Info "$($candidates.Count) arquivos candidatos. Apenas o nivel direto das pastas; sem apagar diretorios ou logs do Windows."
+    if ($DryRun) {
+        $estimated = ($candidates | Measure-Object -Property Length -Sum).Sum
+        Write-Info ("SIMULACAO: {0} arquivos; {1:N2} MiB estimados; {2} falhas de leitura. Nenhum arquivo candidato foi removido." -f $candidates.Count, ($estimated / 1MB), $failed)
+        $candidates | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize | Out-Host
+        return
+    }
     if (-not $candidates.Count) { return }
     if (-not (Confirm-SysAction "Remover os arquivos candidatos?")) { Write-Info "Limpeza cancelada."; return }
     [long]$bytes = 0
@@ -453,16 +459,237 @@ function Otimizacao-Sistema {
     }
 }
 
+function Get-SysDiagnosticSection {
+    param([string]$Title, [scriptblock]$Query)
+    try {
+        $data = @(& $Query)
+        if (-not $data.Count) {
+            return [pscustomobject]@{ Title = $Title; Status = "Sem dados retornados"; Detail = "A consulta nao retornou registros; isso nao confirma a saude do sistema." }
+        }
+        $detail = ($data | Format-List * | Out-String -Width 160).Trim()
+        return [pscustomobject]@{ Title = $Title; Status = "Consulta concluida"; Detail = $detail }
+    } catch {
+        return [pscustomobject]@{ Title = $Title; Status = "Indisponivel"; Detail = $_.Exception.Message }
+    }
+}
+
+function Get-SysStorageHealth {
+    $disks = @(Get-PhysicalDisk -ErrorAction Stop)
+    if (-not $disks.Count) { throw "Nenhum disco fisico retornado." }
+    foreach ($disk in $disks) {
+        [pscustomobject]@{
+            Disco = $disk.FriendlyName
+            Midia = $disk.MediaType
+            SaudeInformada = $disk.HealthStatus
+            EstadoOperacional = ($disk.OperationalStatus -join ", ")
+            TamanhoGiB = [math]::Round($disk.Size / 1GB, 2)
+        }
+        try {
+            $counter = Get-StorageReliabilityCounter -PhysicalDisk $disk -ErrorAction Stop
+            if ($null -eq $counter) { throw "Sem contadores retornados" }
+            $counter | Select-Object Temperature, TemperatureMax, Wear, PowerOnHours, ReadErrorsUncorrected, WriteErrorsUncorrected
+        } catch {
+            [pscustomobject]@{ Disco = $disk.FriendlyName; Contadores = "Indisponiveis: $($_.Exception.Message)" }
+        }
+    }
+    try {
+        $predict = @(Get-CimInstance -Namespace "root\wmi" -ClassName MSStorageDriver_FailurePredictStatus -ErrorAction Stop)
+        if ($predict.Count) { $predict | Select-Object InstanceName, PredictFailure, Reason }
+        else { [pscustomobject]@{ SMART = "Nenhuma previsao SMART retornada." } }
+    } catch { [pscustomobject]@{ SMART = "Previsao indisponivel neste controlador." } }
+    [pscustomobject]@{ Nota = "Campos vazios ou estado Healthy nao excluem falhas. Nem todos os controladores USB, RAID e NVMe expoem SMART." }
+}
+
+function Get-SysBatteryHealth {
+    $batteries = @(Get-CimInstance Win32_Battery -ErrorAction Stop)
+    if (-not $batteries.Count) { [pscustomobject]@{ Bateria = "Nenhuma bateria detectada; normal em desktops." }; return }
+    $batteries | Select-Object Name, EstimatedChargeRemaining, BatteryStatus, EstimatedRunTime
+    try {
+        $design = @(Get-CimInstance -Namespace "root\wmi" -ClassName BatteryStaticData -ErrorAction Stop)
+        $full = @(Get-CimInstance -Namespace "root\wmi" -ClassName BatteryFullChargedCapacity -ErrorAction Stop)
+        foreach ($entry in $design) {
+            $match = @($full | Where-Object { $_.InstanceName -eq $entry.InstanceName })
+            if ($match.Count -eq 1 -and $entry.DesignedCapacity -gt 0 -and $match[0].FullChargedCapacity -gt 0 -and $entry.DesignedCapacity -lt [uint32]::MaxValue -and $match[0].FullChargedCapacity -lt [uint32]::MaxValue) {
+                [pscustomobject]@{ Bateria = $entry.InstanceName; CapacidadeProjeto = $entry.DesignedCapacity; CapacidadeCargaCompleta = $match[0].FullChargedCapacity; SaudeEstimadaPercentual = [math]::Round(100.0 * $match[0].FullChargedCapacity / $entry.DesignedCapacity, 1) }
+            } else { [pscustomobject]@{ Bateria = $entry.InstanceName; Saude = "Capacidade indisponivel" } }
+        }
+        if (-not $design.Count) { [pscustomobject]@{ Saude = "Capacidade de projeto indisponivel" } }
+    } catch { [pscustomobject]@{ Saude = "Capacidade indisponivel: $($_.Exception.Message)" } }
+}
+
+function Get-SysResourceSample {
+    $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+    if ($os.TotalVisibleMemorySize -le 0) { throw "Memoria total indisponivel" }
+    $cpu = @(Get-CimInstance Win32_Processor -ErrorAction Stop | Where-Object { $null -ne $_.LoadPercentage -and $_.NumberOfLogicalProcessors -gt 0 })
+    $cpuPercent = $null
+    if ($cpu.Count) {
+        $weighted = 0.0
+        $threads = 0
+        foreach ($p in $cpu) { $weighted += $p.LoadPercentage * $p.NumberOfLogicalProcessors; $threads += $p.NumberOfLogicalProcessors }
+        $cpuPercent = [math]::Round($weighted / $threads, 1)
+    }
+    [pscustomobject]@{
+        Hora = Get-Date -Format "HH:mm:ss"
+        CPUPercentual = $cpuPercent
+        RAMTotalGiB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
+        RAMUsadaPercentual = [math]::Round(100.0 * ($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / $os.TotalVisibleMemorySize, 1)
+    }
+}
+
+function Monitorar-Recursos {
+    for ($i = 0; $i -lt 5; $i++) {
+        Get-SysResourceSample | Format-List | Out-Host
+        if ($i -lt 4) { Start-Sleep -Seconds 2 }
+    }
+    Write-Info "Cinco amostras de CPU e RAM; valores vazios indicam dados indisponiveis."
+}
+
+function Get-SysCriticalEvents {
+    $start = (Get-Date).AddDays(-7)
+    try {
+        Get-WinEvent -FilterHashtable @{ LogName = "System"; Level = @(1,2); StartTime = $start } -MaxEvents 30 -ErrorAction Stop |
+            Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, @{Name="Message";Expression={ if ($_.Message) { $_.Message.Substring(0,[math]::Min(500,$_.Message.Length)) } }}
+    } catch {
+        if ($_.FullyQualifiedErrorId -like "NoMatchingEventsFound*") { [pscustomobject]@{ Resultado = "Nenhum evento critico ou erro encontrado no log System nos ultimos sete dias." } }
+        else { throw }
+    }
+}
+
+function Get-SysDiagnostics {
+    Get-SysDiagnosticSection "Windows" { Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber, OSArchitecture, LastBootUpTime }
+    Get-SysDiagnosticSection "CPU e RAM" { Get-SysResourceSample; Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors }
+    Get-SysDiagnosticSection "GPU" { Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion }
+    Get-SysDiagnosticSection "Volumes" { Get-Volume | Where-Object { $_.DriveLetter -and $_.DriveType -eq "Fixed" } | Select-Object DriveLetter, FileSystem, HealthStatus, @{Name="TotalGiB";Expression={[math]::Round($_.Size/1GB,2)}}, @{Name="LivreGiB";Expression={[math]::Round($_.SizeRemaining/1GB,2)}} }
+    Get-SysDiagnosticSection "Discos e SMART" { Get-SysStorageHealth }
+    Get-SysDiagnosticSection "Bateria" { Get-SysBatteryHealth }
+    Get-SysDiagnosticSection "Eventos do sistema (7 dias, maximo 30)" { Get-SysCriticalEvents }
+    Get-SysDiagnosticSection "Firewall" { Get-NetFirewallProfile | Select-Object Name, Enabled }
+    Get-SysDiagnosticSection "Microsoft Defender" { Get-MpComputerStatus | Select-Object AMRunningMode, AntivirusEnabled, RealTimeProtectionEnabled, DefenderSignaturesOutOfDate, AntivirusSignatureLastUpdated }
+    Get-SysDiagnosticSection "Antivirus registrados" { Get-CimInstance -Namespace "root\SecurityCenter2" -ClassName AntiVirusProduct | Select-Object displayName }
+    Get-SysDiagnosticSection "Dispositivos com erros" {
+        $issues = @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -ne 0 })
+        if ($issues.Count) { $issues | Select-Object Name, ConfigManagerErrorCode }
+        else { [pscustomobject]@{ Resultado = "Nenhum erro PnP retornado." } }
+    }
+    Get-SysDiagnosticSection "Rede local" { Get-NetIPConfiguration | Select-Object InterfaceAlias, IPv4Address, IPv4DefaultGateway, DNSServer }
+    Get-SysDiagnosticSection "Alertas basicos" { $status = Get-SystemStatus; [pscustomobject]@{ Estado = $status.Text; Observacoes = ($status.Reasons -join "; ") } }
+}
+
+function ConvertTo-SysHtml {
+    param([AllowNull()][string]$Value)
+    return [System.Net.WebUtility]::HtmlEncode($Value)
+}
+
 function Criar-Relatorio {
-    $date = Get-Date -Format "yyyy-MM-dd_HH-mm"; $reportPath = "$script:DesktopDirectory\Relatorio_Sistema_$date.html"
+    param([object[]]$Sections)
+    if (-not $Sections) { $Sections = @(Get-SysDiagnostics) }
+    $directory = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "SysBot\reports"
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $reportPath = Join-Path $directory ("SysBot_{0}_{1}.html" -f (Get-Date -Format "yyyy-MM-dd_HH-mm-ss_fff"),$PID)
+    $cards = foreach ($section in $Sections) {
+        $title = ConvertTo-SysHtml $section.Title
+        $state = ConvertTo-SysHtml $section.Status
+        $detail = ConvertTo-SysHtml $section.Detail
+        "<section><h2>$title</h2><p class='state'>$state</p><pre>$detail</pre></section>"
+    }
+    $generated = ConvertTo-SysHtml (Get-Date -Format "dd/MM/yyyy HH:mm:ss")
     $html = @"
-<!DOCTYPE html><html><head><title>Relatorio do Sistema - $date</title><style>body{font-family:Arial,sans-serif;margin:30px;background-color:#f9f9f9;text-align:center;}h1{color:#2E86AB;margin-bottom:5px;}h2{color:#A23B72;margin-top:30px;}.info{background-color:#e8f4fd;padding:10px;border-radius:8px;display:inline-block;margin:10px auto;font-weight:bold;}table{border-collapse:collapse;width:90%;margin:20px auto;box-shadow:0 2px 10px rgba(0,0,0,0.1);border-radius:8px;overflow:hidden;}th,td{border:1px solid #ddd;padding:10px;}th{background-color:#f2f2f2;color:#333;font-weight:bold;}td{background-color:#fff;}footer{margin-top:40px;color:#666;font-size:0.9em;}</style></head><body><h1>Relatorio do Sistema - SysBot</h1><div class="info">Gerado em: $(Get-Date)</div><h2>Informacoes Basicas</h2><table><tr><th>Item</th><th>Valor</th></tr><tr><td>Nome do Computador</td><td>$env:COMPUTERNAME</td></tr><tr><td>Usuario</td><td>$env:USERNAME</td></tr><tr><td>Sistema Operacional</td><td>$((Get-CimInstance Win32_OperatingSystem).Caption)</td></tr><tr><td>Versao</td><td>$((Get-CimInstance Win32_OperatingSystem).Version)</td></tr></table><h2>Hardware</h2><table><tr><th>Componente</th><th>Informacao</th></tr><tr><td>Processador</td><td>$((Get-CimInstance Win32_Processor).Name)</td></tr><tr><td>Memoria Total</td><td>$([math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)) GB</td></tr><tr><td>Arquitetura</td><td>$((Get-CimInstance Win32_OperatingSystem).OSArchitecture)</td></tr></table><h2>Discos</h2><table><tr><th>Unidade</th><th>Tamanho</th><th>Livre</th><th>Tipo</th></tr>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SysBot | Diagnostico</title>
+<style>body{margin:0;background:#eef2f7;color:#182536;font:16px Segoe UI,Arial,sans-serif}main{max-width:1050px;margin:auto;padding:24px}header{background:#183153;color:white;padding:24px;border-radius:12px}h1{margin:0}h2{font-size:1.15rem;margin:0}section{background:white;border:1px solid #d8e1ec;border-radius:10px;padding:18px;margin:16px 0;break-inside:avoid}.state{color:#374d68;font-weight:600}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px Consolas,monospace}footer{color:#405671}@media print{body{background:white}main{padding:0}}</style></head><body><main><header><h1>SysBot | Diagnostico do Windows</h1><p>Gerado em $generated</p></header><p>Consultas locais: resultados indisponiveis nao significam que o sistema esteja saudavel. Revise dados pessoais antes de compartilhar.</p>$($cards -join [Environment]::NewLine)<footer>SysBot - Moacir Pereira | Licenca MIT</footer></main></body></html>
 "@
-    Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } | ForEach-Object { $sizeGB = [math]::Round($_.Size / 1GB, 2); $freeGB = [math]::Round($_.SizeRemaining / 1GB, 2); $html += "<tr><td>$($_.DriveLetter):</td><td>$sizeGB GB</td><td>$freeGB GB</td><td>$($_.FileSystem)</td></tr>" }
-    $html += "</table><footer><p><em>Relatorio gerado pelo SysBot</em></p></footer></body></html>
-"
-    $html | Out-File $reportPath -Encoding UTF8
+    $html | Out-File -LiteralPath $reportPath -Encoding UTF8 -ErrorAction Stop
     Write-Success "Relatorio salvo em: $reportPath"
+}
+
+function Diagnostico-Completo {
+    $sections = @(Get-SysDiagnostics)
+    foreach ($section in $sections) {
+        Write-Header $section.Title
+        Write-Info $section.Status
+        Write-Host $section.Detail
+    }
+    if (Confirm-SysAction "Salvar este diagnostico em HTML?") { Criar-Relatorio -Sections $sections }
+}
+
+function Simular-Manutencao {
+    Write-Info "SIMULACAO: nenhuma limpeza, reparo, instalacao ou otimizacao sera executada."
+    Limpeza-Avancada -IncludeTempFiles -IncludeThumbnails -IncludeLogs -DryRun
+    Get-Volume | Where-Object { $_.DriveType -eq "Fixed" -and $_.DriveLetter } | Select-Object DriveLetter, FileSystem, HealthStatus | Format-Table -AutoSize | Out-Host
+    Write-Info "A manutencao guiada oferece limpeza, diagnostico e, opcionalmente, verificacoes SFC/DISM sem reparo. Atualizacoes e reparos ficam nos menus especificos."
+}
+
+function Manutencao-Automatica {
+    Write-Info "Rotina iniciada pelo usuario: diagnostico, previa de limpeza e relatorio."
+    if (-not (Confirm-SysAction "Iniciar a rotina guiada?")) { return }
+    $before = @(Get-SysDiagnostics)
+    Criar-Relatorio -Sections $before
+    Limpeza-Avancada -IncludeTempFiles -IncludeThumbnails -IncludeLogs
+    if (Confirm-SysAction "Executar verificacoes SFC e DISM sem solicitar reparo (pode demorar)?") {
+        foreach ($check in @(@{Name="sfc.exe"; Args=@("/verifyonly")}, @{Name="dism.exe"; Args=@("/Online","/Cleanup-Image","/ScanHealth")})) {
+            try { Invoke-SysNative -Name (Join-Path "$env:SystemRoot\System32" $check.Name) -Arguments $check.Args }
+            catch { Write-SysWarning $_.Exception.Message }
+        }
+    }
+    Criar-Relatorio
+    Write-Info "Relatorios antes e depois salvos. Consulte os resultados e os logs; nenhuma atualizacao, reparo, reinicio ou tarefa agendada foi iniciada."
+}
+
+function Show-SysGraphicalMenu {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "SysBot | Central de manutencao"
+    $form.ClientSize = New-Object System.Drawing.Size(490, 410)
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.Tag = ""
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Escolha uma ferramenta. Resultados e confirmacoes aparecem no terminal."
+    $label.SetBounds(20, 15, 450, 48)
+    $form.Controls.Add($label)
+    $choices = @(
+        @{ Text="Diagnostico completo"; Code="d" },
+        @{ Text="Simular manutencao (sem excluir arquivos)"; Code="s" },
+        @{ Text="Manutencao automatica guiada"; Code="a" },
+        @{ Text="SMART e saude dos discos"; Code="h" },
+        @{ Text="Monitorar CPU e RAM"; Code="m" },
+        @{ Text="Saude da bateria"; Code="b" },
+        @{ Text="Eventos criticos"; Code="e" },
+        @{ Text="Gerar relatorio HTML"; Code="r" }
+    )
+    for ($i = 0; $i -lt $choices.Count; $i++) {
+        $button = New-Object System.Windows.Forms.Button
+        $button.Text = $choices[$i].Text
+        $button.Tag = $choices[$i].Code
+        $button.SetBounds(20, (65 + 41 * $i), 450, 34)
+        $button.Add_Click({ param($sender,$eventArgs) $sender.FindForm().Tag = $sender.Tag; $sender.FindForm().Close() })
+        $form.Controls.Add($button)
+    }
+    try { [void]$form.ShowDialog(); return [string]$form.Tag }
+    finally { $form.Dispose() }
+}
+
+function Invoke-SysAdvancedChoice {
+    param([string]$Choice)
+    switch ($Choice) {
+        "d" { Execute-Action -Title "DIAGNOSTICO COMPLETO" -Action { Diagnostico-Completo } -IsLongRunning }
+        "s" { Execute-Action -Title "SIMULACAO DE MANUTENCAO" -Action { Simular-Manutencao } }
+        "a" { Execute-Action -Title "MANUTENCAO AUTOMATICA GUIADA" -Action { Manutencao-Automatica } -IsLongRunning }
+        "h" { Execute-Action -Title "SAUDE DOS DISCOS E SMART" -Action { Get-SysStorageHealth | Format-List | Out-Host } }
+        "m" { Execute-Action -Title "MONITORAMENTO DE CPU E RAM" -Action { Monitorar-Recursos } }
+        "b" { Execute-Action -Title "SAUDE DA BATERIA" -Action { Get-SysBatteryHealth | Format-List | Out-Host } }
+        "e" { Execute-Action -Title "EVENTOS CRITICOS" -Action { Get-SysCriticalEvents | Format-List | Out-Host } }
+        "r" { Execute-Action -Title "RELATORIO HTML" -Action { Criar-Relatorio } -IsLongRunning }
+    }
+}
+
+function Menu-DiagnosticoAvancado {
+    do {
+        $choice = Show-Menu -Title "CENTRAL DE DIAGNOSTICO E MANUTENCAO" -Options @("[d] Diagnostico completo", "[s] Simulacao sem excluir arquivos", "[a] Manutencao automatica guiada", "[h] Discos e SMART", "[m] Monitorar CPU e RAM", "[b] Saude da bateria", "[e] Eventos criticos", "[r] Relatorio HTML", "[0] Voltar")
+        if ($choice -eq "0") { break }
+        Invoke-SysAdvancedChoice -Choice $choice
+    } while ($true)
 }
 
 function Verificar-Firewall {
@@ -601,7 +828,7 @@ function Menu-Rede {
 
 function Menu-Limpeza {
     do {
-        $subOptions = @("[1] Limpeza Basica de Arquivos Temporarios", "[2] Limpeza Avancada com Storage Sense", "[3] Limpar Cache de Pre-carregamento (Prefetch)", "[4] Limpar Cache de Thumbnails e Icones", "[5] Limpar Historico de Documentos Recentes", "[6] Limpeza Completa Segura (todas as opcoes)", "", "[8] AJUDA: O que estas funcoes fazem?", "[9] Voltar ao Menu Principal")
+        $subOptions = @("[1] Limpeza Basica de Arquivos Temporarios", "[2] Limpeza Avancada com Storage Sense", "[3] Informacoes sobre Prefetch", "[4] Limpar Cache de Thumbnails e Icones", "[5] Limpar Historico de Documentos Recentes", "[6] Limpeza Completa Segura (temporarios, miniaturas e logs SysBot)", "[7] Simular limpeza sem excluir arquivos", "", "[8] AJUDA: O que estas funcoes fazem?", "[9] Voltar ao Menu Principal")
         $subChoice = Show-Menu -Title "FERRAMENTAS DE LIMPEZA" -Options $subOptions
         if ($subChoice -eq '9') { break }
         switch ($subChoice) {
@@ -611,6 +838,7 @@ function Menu-Limpeza {
             '4' { Execute-Action -Title "LIMPANDO CACHES VISUAIS" -Action { Limpeza-Avancada -IncludeThumbnails } }
             '5' { Execute-Action -Title "LIMPANDO ARQUIVOS RECENTES" -Action { Limpeza-Avancada -IncludeRecentFiles } }
             '6' { Execute-Action -Title "LIMPEZA COMPLETA" -Action { Limpeza-Avancada -IncludeTempFiles -IncludeThumbnails -IncludeLogs } -IsLongRunning }
+            '7' { Execute-Action -Title "SIMULACAO DE LIMPEZA" -Action { Limpeza-Avancada -IncludeTempFiles -IncludeThumbnails -IncludeLogs -DryRun } }
             '8' { Show-HelpScreen -Title "AJUDA: LIMPEZA" -HelpLines @("[1] Limpeza Basica", "O que faz: Remove 'lixo' digital que os programas e o sistema criam.", "", "[2] Limpeza Avancada (Storage Sense)", "O que faz: Abre a ferramenta oficial do Windows para limpeza.", "", "[3] Sobre Prefetch", "O que faz: Preserva o cache de inicializacao gerenciado pelo Windows.", "", "[4] Limpar Caches Visuais", "O que faz: Remove o cache de miniaturas de imagens e icones.", "", "[5] Limpar Recentes", "O que faz: Limpa a lista de documentos recentes.", "", "[6] Limpeza Completa Segura", "O que faz: Remove arquivos elegiveis com confirmacao; preserva Prefetch e logs do Windows.") }
             default { if ($subChoice -ne '9') {Write-Host "[-] Opcao invalida" -ForegroundColor Red; Pausar} }
         }
@@ -716,6 +944,8 @@ do {
         "[6] Relatorios e Diagnosticos",
         "[7] Auditoria de Seguranca",
         "[8] Gerenciador de Desenvolvimento",
+        "[10] Central de Diagnostico e Manutencao",
+        "[g] Interface grafica opcional",
         "",
         "[9] AJUDA: O que cada menu faz?",
         "[0] Sair do SysBot"
@@ -731,6 +961,8 @@ do {
         '6' { Menu-Relatorios }
         '7' { Menu-Seguranca }
         '8' { Menu-DevTools }
+        '10' { Menu-DiagnosticoAvancado }
+        'g' { try { $choice = Show-SysGraphicalMenu; if ($choice) { Invoke-SysAdvancedChoice -Choice $choice } } catch { Write-SysWarning $_.Exception.Message; Pausar } }
         '9' { Show-HelpScreen -Title "AJUDA GERAL" -HelpLines @("[1] Manutencao do Sistema", "    Executa tarefas essenciais para manter o sistema saudavel.", "", "[2] Informacoes de Hardware", "    Mostra detalhes sobre os componentes do seu computador.", "", "[3] Diagnostico de Rede", "    Ferramentas para verificar sua conexao com a internet.", "", "[4] Ferramentas de Limpeza", "    Libera espaco em disco removendo arquivos desnecessarios.", "", "[5] Otimizacao Avancada", "    Executa acoes para melhorar o desempenho do sistema.", "", "[6] Relatorios e Diagnosticos", "    Gera relatorios completos sobre o estado do seu sistema.", "", "[7] Auditoria de Seguranca", "    Verifica configuracoes basicas de seguranca do seu PC.", "", "[8] Gerenciador de Desenvolvimento", "    Instala e verifica ferramentas populares para programacao.") }
         '0' { Write-Host "`nEncerrando SysBot. Ate logo!" -ForegroundColor Green; break }
         default { Write-Host "`n[-] Opcao invalida. Tente novamente." -ForegroundColor Red; Pausar }
